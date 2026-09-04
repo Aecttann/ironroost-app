@@ -1,0 +1,98 @@
+<resources>
+    <string name="app_name" translatable="false">Tic Tac Toe, Snake &amp; Tank</string>
+    <string name="statistics">Statistics</string>
+    <string name="new_game">New Game</string>
+    <string name="your_turn">Your turn</string>
+    <string name="computer_won">Computer won!</string>
+    <string name="you_won">You won!</string>
+    <string name="draw">Draw!</string>
+    <string name="version">Version: %1$s</string>
+    <string name="back">Back</string>
+    <string name="games_total">"Games total: "</string>
+    <string name="player_wins">"Wins: "</string>
+    <string name="draws">"Draws: "</string>
+    <string name="reset_statistics">Reset statistics</string>
+    <string name="select_language">Select Language:</string>
+    <string name="settings">Settings</string>
+    <string name="select_board_size">Select Board Size:</string>
+    <string name="computers_turn">Computer`s turn</string>
+    <string name="select_difficulty">"Choose difficulty level: "</string>
+    <string name="select_difficulty_easy">Easy</string>
+    <string name="select_difficulty_medium">Medium</string>
+    <string name="select_difficulty_hard">Hard</string>
+    <string name="tokens_singular">You earned: %1$d token</string>
+    <string name="tokens_few">You earned: %1$d tokens</string>
+    <string name="tokens_many">You earned: %1$d tokens</string>
+    <string name="app_version">App version: %s</string>
+    <string name="message_photos">Searched photos can be irrelevant due to using 3rd party API. Our app not pre-storing any of this images, all of them downloaded dynamically. Please use english for more relevant search results.</string>
+    <string name="search_photos">Image search</string>
+    <string name="watch_ad_for_premium">To continue saving images in FullHD quality, watch an ad and get 10 bonus downloads.</string>
+    <string name="message_welcome">Play Classic Games, earn and spend tokens! Change difficulty level to increase your chances to win tokens.</string>
+    <string name="message_snake_controls">To control, use the touch screen on the playing field or the bottom controllers</string>
+    <string name="tokens_not_enough">Not enough tokens</string>
+    <string name="coming_soon">In development. Coming soon…</string>
+    <string name="admob_interstitial_id_snake_screen" translatable="false">ca-app-pub-4014372145678923/4861497677</string>
+    <string name="admob_interstitial_id_victory_screen" translatable="false">ca-app-pub-4014372145678923/4861497677</string>
+    <string name="ok" translatable="false">OK</string>
+    <string name="admob_baner_id_settings_screen" translatable="false">ca-app-pub-4014372145678923/7935368715</string>
+    <string name="beyyoond_godlike_counted" translatable="false">BEYOND GODLIKE! Counted for future release, wait :)</string>
+    <string name="score">Score: %1$d</string>
+    <string name="play_again">Play again</string>
+    <string name="direction">Direction</string>
+    <string name="admob_baner_id_statistics" translatable="false">ca-app-pub-4014372145678923/9332651809</string>
+    <string name="admob_baner_id_classic_games_screen" translatable="false">ca-app-pub-4014372145678923/7601176859</string>
+    <string name="admob_baner_id_victoryscreen" translatable="false">ca-app-pub-4014372145678923/2990604731</string>
+    <string name="tokens_count">Tokens: %1$d</string>
+    <string name="enter_any_query">Enter any query</string>
+    <string name="win_image">Win image</string>
+    <string name="saveHD">⭐ Save HD (%1$d)</string>
+    <string name="saveSD">💾 Save SD</string>
+    <string name="ad_failed">Failed to load ad</string>
+    <string name="admob_intertestial_rewarded_victoryscreen" translatable="false">ca-app-pub-4014372145678923/7875341732</string>
+    <string name="error_image_corrupted">Error: Image is corrupted</string>
+    <string name="photo_saved">✅ Photo saved!</string>
+    <string name="error_output_stream">Failed to get OutputStream</string>
+    <string name="error_create_gallery_file">Failed to create file in gallery</string>
+    <string name="error_generic">❌ Error: %1$s</string>
+    <string name="search">Search</string>
+    <string name="no_internet">No connection to Internet</string>
+    <string name="error_server">Server response error. Please try again or later</string>
+
+    <string name="tanks_loading">Loading tanks…</string>
+    <string name="tanks_stage">Stage %1$d</string>
+    <string name="tanks_enemies">Enemies: %1$d/%2$d</string>
+    <string name="tanks_tank_level">Tank lvl %1$d</string>
+    <string name="tanks_game_over">Game over</string>
+    <string name="tanks_next_stage">Next stage</string>
+    <string name="tanks_play_again_cost">Play again (%1$d)</string>
+    <string name="tanks_fire">FIRE</string>
+    <string name="tanks_start">START</string>
+    <string name="tanks_pause">PAUSE</string>
+    <string name="tanks_select_stage">Stages</string>
+    <string name="tanks_select_stage_title">Select stage</string>
+    <string name="tanks_highest_completed_stage">Completed stage: %1$d</string>
+    <string name="tanks_locked_stages_hint">Locked stages open up as you clear the ones before them.</string>
+    <string name="tanks_debug_all_stages_available">Debug build: all stages are available.</string>
+    <string name="tanks_fullscreen_title">Use fullscreen mode?</string>
+    <string name="tanks_fullscreen_message">Fullscreen mode hides the system bars and gives the controls more room.</string>
+    <string name="tanks_fullscreen_do_not_show">Do not show again</string>
+    <string name="tanks_fullscreen_enable">Fullscreen</string>
+    <string name="tanks_fullscreen_skip">Not now</string>
+    <string name="tanks_exit_title">Leave the battle?</string>
+    <string name="tanks_exit_message">The %1$d tokens you paid for this run will not come back.</string>
+    <string name="tanks_exit_confirm">Leave</string>
+    <string name="tanks_exit_cancel">Keep playing</string>
+    <string name="tanks_error_message">Could not load the stage: %1$s</string>
+    <string name="tanks_retry">Try again</string>
+    <string name="tanks_summary_title">Stage %1$d cleared</string>
+    <string name="tanks_summary_stage_points">Stage points</string>
+    <string name="tanks_summary_total_points">Total points</string>
+    <string name="tanks_summary_lives_left">Lives left</string>
+    <string name="tanks_enemy_basic">Basic</string>
+    <string name="tanks_enemy_fast">Fast</string>
+    <string name="tanks_enemy_power">Power</string>
+    <string name="tanks_enemy_armor">Armor</string>
+    <string name="sound_enabled">Sound</string>
+    <string name="privacy_options">Privacy options</string>
+    <string name="privacy_options_change">Change</string>
+</resources>

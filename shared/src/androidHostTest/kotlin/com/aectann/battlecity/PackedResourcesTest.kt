@@ -1,0 +1,185 @@
+package com.aectann.battlecity
+
+import com.aectann.battlecity.engine.BattleCityDirection
+import com.aectann.battlecity.engine.BattleCityEngine
+import com.aectann.battlecity.engine.BattleCityInput
+import com.aectann.battlecity.engine.BattleCityInputs
+import com.aectann.battlecity.engine.BattleCityLevelParser
+import com.aectann.battlecity.engine.BattleCityMaxDifficulty
+import com.aectann.battlecity.engine.BattleCityMaxStage
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Checks the files that actually ship: every stage parses and is playable, and every sprite
+ * and clip the code asks for is present. Reads them straight off disk so the check is a fast
+ * JVM test rather than something that only fails on a device.
+ */
+class PackedResourcesTest {
+
+    private val resourcesRoot: File by lazy {
+        val candidates = listOf(
+            "src/commonMain/composeResources",
+            "shared/src/commonMain/composeResources",
+            "../shared/src/commonMain/composeResources"
+        )
+        candidates.map { File(it) }.firstOrNull { it.isDirectory }
+            ?: error(
+                "composeResources not found from ${File(".").absolutePath}; " +
+                    "tried ${candidates.joinToString()}"
+            )
+    }
+
+    private fun resource(path: String) = File(resourcesRoot, path)
+
+    @Test
+    fun everyStageParsesAndPassesItsInvariants() {
+        for (stage in 1..BattleCityMaxStage) {
+            val file = resource(BattleCityLevelParser.stagePath(stage))
+            assertTrue(file.isFile, "missing stage file: ${file.path}")
+
+            val level = BattleCityLevelParser.parse(file.readText())
+            val (baseX, baseY) = level.spawnPoints.base
+            assertEquals('H', level.grid[baseY][baseX], "stage $stage base tile")
+
+            val (playerX, playerY) = level.spawnPoints.player1
+            assertEquals('.', level.grid[playerY][playerX], "stage $stage player spawn")
+
+            level.spawnPoints.enemy.forEach { spawn ->
+                assertEquals(
+                    '.',
+                    level.grid[spawn[1]][spawn[0]],
+                    "stage $stage enemy spawn ${spawn.joinToString()}"
+                )
+            }
+            assertEquals(20, level.enemyGroups.sumOf { it.count }, "stage $stage wave size")
+        }
+    }
+
+    @Test
+    fun stageDifficultyNeverGoesBackwards() {
+        var previous = 0
+        for (stage in 1..BattleCityMaxStage) {
+            val level = BattleCityLevelParser.parse(resource(BattleCityLevelParser.stagePath(stage)).readText())
+            val difficulty = level.difficulty ?: 1
+            assertTrue(
+                difficulty >= previous,
+                "stage $stage difficulty $difficulty dropped below $previous"
+            )
+            assertTrue(difficulty in 1..BattleCityMaxDifficulty, "stage $stage difficulty out of range")
+            previous = difficulty
+        }
+        assertEquals(BattleCityMaxDifficulty, previous, "last stage should be the hardest tier")
+    }
+
+    @Test
+    fun everyStageGridIsUnique() {
+        val seen = mutableMapOf<String, Int>()
+        for (stage in 1..BattleCityMaxStage) {
+            val level = BattleCityLevelParser.parse(resource(BattleCityLevelParser.stagePath(stage)).readText())
+            val duplicate = seen.put(level.grid.joinToString(""), stage)
+            assertTrue(duplicate == null, "stage $stage repeats the map of stage $duplicate")
+        }
+        assertEquals(BattleCityMaxStage, seen.size)
+    }
+
+    @Test
+    fun everyStageRunsWithoutError() {
+        for (stage in 1..BattleCityMaxStage) {
+            val level = BattleCityLevelParser.parse(resource(BattleCityLevelParser.stagePath(stage)).readText())
+            val engine = BattleCityEngine(stage, level, seed = stage.toLong())
+            var state = engine.reset()
+            repeat(180) {
+                state = engine.step(
+                    1f / 60f,
+                    BattleCityInputs(BattleCityInput(BattleCityDirection.Up, true))
+                ).state
+            }
+            assertEquals(13, state.tiles.cols, "stage $stage board width")
+            assertEquals(13, state.tiles.rows, "stage $stage board height")
+        }
+    }
+
+    /**
+     * A floor on how fast stage one can be lost, not a statement about how hard it should be.
+     * Actual difficulty needs playtesting; what this catches is the pathological case, where a
+     * tuning change lets the wave take the base before a player could plausibly react. It once
+     * fell in eight seconds because every tank drilled every wall and sniped the base across the
+     * whole board.
+     */
+    @Test
+    fun stageOneGivesThePlayerTimeToReact() {
+        val level = BattleCityLevelParser.parse(resource(BattleCityLevelParser.stagePath(1)).readText())
+        val fastest = (1L..8L).minOf { seed ->
+            val engine = BattleCityEngine(1, level, seed = seed)
+            engine.reset()
+            var state = engine.currentState()
+            var elapsed = 0f
+            while (elapsed < 30f && !state.baseDestroyed) {
+                state = engine.step(1f / 60f, BattleCityInputs.Idle).state
+                elapsed += 1f / 60f
+            }
+            elapsed
+        }
+        assertTrue(
+            fastest >= 8f,
+            "an idle player lost the base after only %.1fs; the wave is too base-focused".format(fastest)
+        )
+    }
+
+    /**
+     * The other half of the reaction window: the wave must not camp the respawn point. When
+     * every tank drifted toward the base, four of them settled next to the player's spawn and
+     * emptied three lives in eight seconds.
+     */
+    @Test
+    fun stageOneDoesNotCampThePlayerSpawn() {
+        val level = BattleCityLevelParser.parse(resource(BattleCityLevelParser.stagePath(1)).readText())
+        val fastestWipe = (1L..8L).minOf { seed ->
+            val engine = BattleCityEngine(1, level, seed = seed)
+            engine.reset()
+            var state = engine.currentState()
+            var elapsed = 0f
+            while (elapsed < 30f && state.lives > 0 && !state.baseDestroyed) {
+                state = engine.step(1f / 60f, BattleCityInputs.Idle).state
+                elapsed += 1f / 60f
+            }
+            if (state.lives > 0) 30f else elapsed
+        }
+        assertTrue(
+            fastestWipe >= 12f,
+            "an idle player lost every life in %.1fs; the wave is camping the spawn".format(fastestWipe)
+        )
+    }
+
+    @Test
+    fun everySpriteTheRendererAsksForIsPacked() {
+        val missing = TanksAssets.spritePaths()
+            .filterValues { !resource(it).isFile }
+            .map { (key, path) -> "$key -> $path" }
+        assertTrue(missing.isEmpty(), "missing sprites:\n" + missing.joinToString("\n"))
+    }
+
+    @Test
+    fun everySoundClipIsPacked() {
+        val missing = TanksClip.entries.filter { !resource(it.path).isFile }.map { it.name }
+        assertTrue(missing.isEmpty(), "missing clips: $missing")
+    }
+
+    @Test
+    fun everyLocaleDefinesTheSameStringKeys() {
+        val keyPattern = Regex("""<string name="([^"]+)"""")
+        val locales = resourcesRoot.listFiles()
+            ?.filter { it.isDirectory && it.name.startsWith("values") }
+            ?.associate { dir -> dir.name to keyPattern.findAll(File(dir, "strings.xml").readText()).map { it.groupValues[1] }.toSet() }
+            ?: emptyMap()
+
+        assertTrue(locales.size >= 8, "expected the full locale set, found ${locales.keys}")
+        val reference = locales.getValue("values")
+        locales.forEach { (locale, keys) ->
+            assertEquals(reference, keys, "$locale does not define the same keys as values")
+        }
+    }
+}

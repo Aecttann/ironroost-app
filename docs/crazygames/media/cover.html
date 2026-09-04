@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Steel Eagle cover renderer</title>
+<style>
+    body { margin: 0; background: #14181f; color: #e7eaef; font: 13px system-ui, sans-serif; }
+    #stage { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; align-items: flex-start; }
+    figure { margin: 0; }
+    canvas { display: block; background: #000; max-width: 44vw; height: auto; }
+    figcaption { padding-top: 6px; color: #9aa4b2; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+/*
+ * Draws the CrazyGames listing covers from the game's own 16x16 sprites, so the art on the store
+ * page is the art in the game. Serve the repository root and open this file, then call saveAll()
+ * to write the PNGs next to it.
+ *
+ * Portal rules this file obeys: the title is the only text, every format is full bleed with no
+ * borders or black bars, and nothing is drawn that the project does not own.
+ *
+ * One board is laid out once and each format points a camera at it, so the three covers show the
+ * same fight from the same distance rather than three unrelated pictures.
+ */
+
+const GRAPHICS = "/shared/src/commonMain/composeResources/files/battle_city/graphics";
+
+const SPRITES = {
+    brick: `${GRAPHICS}/tiles/brick_damage_0.png`,
+    brickHit: `${GRAPHICS}/tiles/brick_damage_1.png`,
+    brickHalf: `${GRAPHICS}/tiles/brick_damage_2.png`,
+    steel: `${GRAPHICS}/tiles/steel.png`,
+    water: `${GRAPHICS}/tiles/water_0.png`,
+    forest: `${GRAPHICS}/tiles/forest_0.png`,
+    base: `${GRAPHICS}/ui/base_eagle_alive.png`,
+    player: `${GRAPHICS}/tanks/player/green_level3_up.png`,
+    enemyBasic: `${GRAPHICS}/tanks/enemy/basic_down.png`,
+    enemyFast: `${GRAPHICS}/tanks/enemy/fast_down.png`,
+    enemyArmor: `${GRAPHICS}/tanks/enemy/armor_gray_down.png`,
+    enemyBonus: `${GRAPHICS}/tanks/enemy/bonus_flash_down.png`,
+    bulletUp: `${GRAPHICS}/effects/bullet_up.png`,
+    bulletDown: `${GRAPHICS}/effects/bullet_down.png`,
+    spark: `${GRAPHICS}/effects/explosion_1.png`,
+    star: `${GRAPHICS}/powerups/star.png`,
+    helmet: `${GRAPHICS}/powerups/helmet.png`
+};
+
+// 21 columns by 17 rows, symmetric about column 10, with a lane running straight down the middle
+// to the eagle. Every format frames that lane, so the player always reads as defending the base.
+const BOARD = [
+    "bbb..bb..bbb..bb..bbb",
+    "bbb..bb..bbb..bb..bbb",
+    ".....................",
+    "..ssss..bb.bb..ssss..",
+    "..bbbb..bb.bb..bbbb..",
+    "..bbbb.........bbbb..",
+    ".....................",
+    "bbbb..bbb...bbb..bbbb",
+    "bbbb..bbb...bbb..bbbb",
+    "wwww...ff...ff...wwww",
+    "...bb...........bb...",
+    "..bbb.ss.....ss.bbb..",
+    "..bbb...........bbb..",
+    "..bb.............bb..",
+    "..bb.............bb..",
+    ".........bbb.........",
+    ".........bEb.........",
+    "bbb...............bbb"
+];
+
+const TILE_SPRITE = { b: "brick", s: "steel", w: "water", f: "forest", E: "base" };
+
+// Shell damage along the lane: the wall the fight came through is not intact any more.
+const BATTLE_DAMAGE = {
+    "8,4": "brickHit",
+    "12,3": "brickHalf",
+    "7,8": "brickHit",
+    "13,7": "brickHalf",
+    "4,11": "brickHit",
+    "17,10": "brickHalf",
+    "9,15": "brickHit"
+};
+
+const COLS = BOARD[0].length;
+const ROWS = BOARD.length;
+
+const images = {};
+
+async function loadSprites() {
+    await Promise.all(Object.entries(SPRITES).map(([name, src]) => new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => { images[name] = img; resolve(); };
+        img.onerror = () => reject(new Error(`missing sprite ${src}`));
+        img.src = src;
+    })));
+}
+
+/*
+ * Each format gets its own camera and its own cast. A frame two thirds as wide as it is tall
+ * cannot hold the same arrangement as a 16:9 one, and the title band lands on a different part
+ * of the board in each, so the tanks are placed per format to stay out from under it.
+ */
+const LAYOUTS = {
+    landscape: {
+        width: 1920, height: 1080, tile: 96, originCol: 0.5, originRow: 6.75,
+        titleSize: 122, titleY: 0.13,
+        actors: [
+            { sprite: "enemyFast", col: 3.4, row: 9.6, size: 2.0 },
+            { sprite: "enemyBasic", col: 8.9, row: 9.4, size: 2.1 },
+            { sprite: "enemyBonus", col: 14.7, row: 9.6, size: 2.0 },
+            { sprite: "enemyArmor", col: 16.4, row: 12.4, size: 1.9 },
+            { sprite: "bulletDown", col: 4.25, row: 11.7, size: 0.8 },
+            { sprite: "star", col: 5.5, row: 13.5, size: 1.3 },
+            { sprite: "helmet", col: 14.4, row: 13.5, size: 1.3 },
+            { sprite: "bulletUp", col: 10.35, row: 10.9, size: 0.8 },
+            { sprite: "player", col: 9.3, row: 12.0, size: 2.7 }
+        ],
+        muzzle: { col: 10.75, row: 11.1 }
+    },
+    portrait: {
+        width: 800, height: 1200, tile: 80, originCol: 5, originRow: 3,
+        titleSize: 72, titleY: 0.112,
+        actors: [
+            { sprite: "enemyFast", col: 6.1, row: 6.1, size: 2.0 },
+            { sprite: "enemyBonus", col: 12.1, row: 6.2, size: 2.0 },
+            { sprite: "enemyBasic", col: 9.0, row: 9.0, size: 2.1 },
+            { sprite: "enemyArmor", col: 6.2, row: 11.9, size: 1.9 },
+            { sprite: "bulletDown", col: 6.75, row: 13.8, size: 0.8 },
+            { sprite: "star", col: 5.4, row: 14.6, size: 1.3 },
+            { sprite: "helmet", col: 13.4, row: 14.6, size: 1.3 },
+            { sprite: "bulletUp", col: 10.35, row: 10.9, size: 0.8 },
+            { sprite: "player", col: 9.3, row: 12.0, size: 2.7 }
+        ],
+        muzzle: { col: 10.75, row: 11.1 }
+    },
+    square: {
+        width: 800, height: 800, tile: 80, originCol: 5, originRow: 7.4,
+        titleSize: 70, titleY: 0.1,
+        actors: [
+            { sprite: "enemyFast", col: 5.9, row: 9.3, size: 2.0 },
+            { sprite: "enemyBasic", col: 8.9, row: 9.1, size: 2.1 },
+            { sprite: "enemyBonus", col: 12.2, row: 9.3, size: 2.0 },
+            { sprite: "bulletDown", col: 6.75, row: 11.3, size: 0.8 },
+            { sprite: "star", col: 5.4, row: 14.5, size: 1.3 },
+            { sprite: "helmet", col: 13.4, row: 14.5, size: 1.3 },
+            { sprite: "bulletUp", col: 10.35, row: 10.9, size: 0.8 },
+            { sprite: "player", col: 9.3, row: 12.1, size: 2.7 }
+        ],
+        muzzle: { col: 10.75, row: 11.1 }
+    }
+};
+
+function drawCover(canvas, layout) {
+    const { width, height, tile, originCol, originRow, titleSize, titleY, actors, muzzle } = layout;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+
+    const x0 = -originCol * tile;
+    const y0 = -originRow * tile;
+    const at = (col, row) => [x0 + col * tile, y0 + row * tile];
+
+    ctx.fillStyle = "#07090c";
+    ctx.fillRect(0, 0, width, height);
+
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const base = TILE_SPRITE[BOARD[row][col]];
+            if (!base) continue;
+            const sprite = BATTLE_DAMAGE[`${col},${row}`] ?? base;
+            const [x, y] = at(col, row);
+            ctx.drawImage(images[sprite], x, y, tile, tile);
+        }
+    }
+
+    for (const actor of actors) {
+        const size = actor.size * tile;
+        const [x, y] = at(actor.col, actor.row);
+        ctx.drawImage(images[actor.sprite], x, y, size, size);
+    }
+
+    // Muzzle flash: the one warm light on the board, and it sits on the player.
+    const [flashX, flashY] = at(muzzle.col, muzzle.row);
+    const glow = ctx.createRadialGradient(flashX, flashY, 0, flashX, flashY, tile * 2.6);
+    glow.addColorStop(0, "rgba(255, 226, 160, 0.6)");
+    glow.addColorStop(0.45, "rgba(255, 170, 70, 0.18)");
+    glow.addColorStop(1, "rgba(255, 170, 70, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(flashX - tile * 2.6, flashY - tile * 2.6, tile * 5.2, tile * 5.2);
+
+    // Corner falloff so the busy board does not compete with the title.
+    const vignette = ctx.createRadialGradient(
+        width / 2, height * 0.62, Math.min(width, height) * 0.22,
+        width / 2, height * 0.55, Math.max(width, height) * 0.76
+    );
+    vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vignette.addColorStop(1, "rgba(0, 0, 0, 0.6)");
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, width, height);
+
+    const band = ctx.createLinearGradient(0, 0, 0, height * 0.36);
+    band.addColorStop(0, "rgba(5, 8, 12, 0.94)");
+    band.addColorStop(0.6, "rgba(5, 8, 12, 0.55)");
+    band.addColorStop(1, "rgba(5, 8, 12, 0)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, 0, width, height * 0.36);
+
+    drawTitle(ctx, width, height * titleY, titleSize);
+    return canvas;
+}
+
+function drawTitle(ctx, width, baseline, size) {
+    const text = "STEEL EAGLE";
+    const spacing = Math.round(size * 0.07);
+    ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.letterSpacing = `${spacing}px`;
+
+    // Canvas adds the tracking after the last letter too, so centred text sits half a gap left.
+    const centre = width / 2 + spacing / 2;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+    ctx.shadowBlur = size * 0.34;
+    ctx.shadowOffsetY = size * 0.07;
+    ctx.fillStyle = "#0a0d12";
+    ctx.fillText(text, centre, baseline);
+    ctx.restore();
+
+    ctx.lineWidth = size * 0.11;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#0a0d12";
+    ctx.strokeText(text, centre, baseline);
+
+    const ink = ctx.createLinearGradient(0, baseline - size * 0.62, 0, baseline + size * 0.62);
+    ink.addColorStop(0, "#ffe09a");
+    ink.addColorStop(0.5, "#e0a03c");
+    ink.addColorStop(1, "#b8761c");
+    ctx.fillStyle = ink;
+    ctx.fillText(text, centre, baseline);
+}
+
+async function renderAll() {
+    await loadSprites();
+    const stage = document.getElementById("stage");
+    stage.innerHTML = "";
+    const made = {};
+    for (const [name, layout] of Object.entries(LAYOUTS)) {
+        const figure = document.createElement("figure");
+        const canvas = document.createElement("canvas");
+        drawCover(canvas, layout);
+        const caption = document.createElement("figcaption");
+        caption.textContent = `${name} ${layout.width}x${layout.height}`;
+        figure.append(canvas, caption);
+        stage.append(figure);
+        made[name] = canvas;
+    }
+    window.__covers = made;
+    return Object.keys(made);
+}
+
+/** Posts each cover to the render server, which writes it next to this file. */
+async function saveAll(endpoint = "/save") {
+    await renderAll();
+    const saved = [];
+    for (const [name, canvas] of Object.entries(window.__covers)) {
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+        const response = await fetch(`${endpoint}/cover-${name}.png`, { method: "POST", body: blob });
+        saved.push(`${name}: ${await response.text()} bytes`);
+    }
+    return saved;
+}
+
+window.renderAll = renderAll;
+window.saveAll = saveAll;
+window.__ready = renderAll();
+</script>
+</body>
+</html>

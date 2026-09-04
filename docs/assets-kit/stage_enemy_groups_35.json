@@ -1,0 +1,786 @@
+[
+  {
+    "stage": 1,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 18
+      },
+      {
+        "enemy": "fast",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 2,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "armor",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "basic",
+        "count": 14
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 3,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 14
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 4,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 10
+      },
+      {
+        "enemy": "fast",
+        "count": 5
+      },
+      {
+        "enemy": "basic",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 3
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 5,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 5
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      },
+      {
+        "enemy": "basic",
+        "count": 8
+      },
+      {
+        "enemy": "fast",
+        "count": 5
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 6,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 7
+      },
+      {
+        "enemy": "fast",
+        "count": 2
+      },
+      {
+        "enemy": "basic",
+        "count": 9
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 7,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 3
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "power",
+        "count": 6
+      },
+      {
+        "enemy": "basic",
+        "count": 7
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 8,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 7
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "basic",
+        "count": 7
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 9,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 6
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "power",
+        "count": 7
+      },
+      {
+        "enemy": "armor",
+        "count": 3
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 10,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 12
+      },
+      {
+        "enemy": "fast",
+        "count": 2
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 11,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 5
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "fast",
+        "count": 5
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 12,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 8
+      },
+      {
+        "enemy": "fast",
+        "count": 6
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 13,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 8
+      },
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "armor",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 14,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 10
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 15,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 10
+      },
+      {
+        "enemy": "armor",
+        "count": 8
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 16,
+    "difficulty": "★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 16
+      },
+      {
+        "enemy": "fast",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 17,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "armor",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 8
+      },
+      {
+        "enemy": "basic",
+        "count": 8
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 18,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "armor",
+        "count": 4
+      },
+      {
+        "enemy": "basic",
+        "count": 2
+      },
+      {
+        "enemy": "power",
+        "count": 6
+      },
+      {
+        "enemy": "fast",
+        "count": 8
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 19,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 8
+      },
+      {
+        "enemy": "basic",
+        "count": 4
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 20,
+    "difficulty": "★★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "basic",
+        "count": 2
+      },
+      {
+        "enemy": "power",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 8
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 21,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 8
+      },
+      {
+        "enemy": "fast",
+        "count": 2
+      },
+      {
+        "enemy": "basic",
+        "count": 6
+      },
+      {
+        "enemy": "armor",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 22,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "basic",
+        "count": 6
+      },
+      {
+        "enemy": "power",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 23,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "armor",
+        "count": 6
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "fast",
+        "count": 10
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 24,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "basic",
+        "count": 10
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 25,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "armor",
+        "count": 10
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 26,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 6
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      },
+      {
+        "enemy": "basic",
+        "count": 4
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 27,
+    "difficulty": "★★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 8
+      },
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "basic",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 28,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 2
+      },
+      {
+        "enemy": "armor",
+        "count": 1
+      },
+      {
+        "enemy": "basic",
+        "count": 15
+      },
+      {
+        "enemy": "power",
+        "count": 2
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 29,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 10
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 30,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "basic",
+        "count": 4
+      },
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 31,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 3
+      },
+      {
+        "enemy": "fast",
+        "count": 8
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      },
+      {
+        "enemy": "power",
+        "count": 3
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 32,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "armor",
+        "count": 8
+      },
+      {
+        "enemy": "basic",
+        "count": 6
+      },
+      {
+        "enemy": "power",
+        "count": 2
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 33,
+    "difficulty": "★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "fast",
+        "count": 4
+      },
+      {
+        "enemy": "armor",
+        "count": 8
+      },
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "fast",
+        "count": 4
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 34,
+    "difficulty": "★★★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "fast",
+        "count": 10
+      },
+      {
+        "enemy": "armor",
+        "count": 6
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  },
+  {
+    "stage": 35,
+    "difficulty": "★★",
+    "totalEnemies": 20,
+    "groups": [
+      {
+        "enemy": "power",
+        "count": 4
+      },
+      {
+        "enemy": "fast",
+        "count": 6
+      },
+      {
+        "enemy": "armor",
+        "count": 10
+      }
+    ],
+    "sourceNote": "Enemy group table derived from StrategyWiki Battle City walkthrough; see docs/research_summary.md for attribution."
+  }
+]

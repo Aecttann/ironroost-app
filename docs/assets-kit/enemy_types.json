@@ -1,0 +1,34 @@
+[
+  {
+    "id": "basic",
+    "score": 100,
+    "health": 1,
+    "moveSpeedTier": 1,
+    "bulletSpeedTier": 1,
+    "notes": "Slow movement, slow bullet; common early enemy."
+  },
+  {
+    "id": "fast",
+    "score": 200,
+    "health": 1,
+    "moveSpeedTier": 3,
+    "bulletSpeedTier": 2,
+    "notes": "Fast movement; dangerous to base."
+  },
+  {
+    "id": "power",
+    "score": 300,
+    "health": 1,
+    "moveSpeedTier": 2,
+    "bulletSpeedTier": 3,
+    "notes": "Fast bullets; good at opening brick corridors."
+  },
+  {
+    "id": "armor",
+    "score": 400,
+    "health": 4,
+    "moveSpeedTier": 2,
+    "bulletSpeedTier": 2,
+    "notes": "Four hit points; color/state can change after hits."
+  }
+]

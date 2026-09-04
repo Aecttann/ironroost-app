@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1f28">
+    <meta name="description" content="Steel Eagle — an original 35-stage tank arcade game.">
+    <meta name="app-version" content="@APP_VERSION@">
+    <!-- Empty until CrazyGames invites the game to a leaderboard and issues a key. -->
+    <meta name="leaderboard-key" content="@LEADERBOARD_KEY@">
+    <title>Steel Eagle</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+    <script defer src="portal.js"></script>
+</head>
+<body>
+    <noscript>Steel Eagle requires JavaScript to run.</noscript>
+    <div id="loading" role="status" aria-live="polite">
+        <span class="loader" aria-hidden="true"></span>
+        <span>Loading Steel Eagle…</span>
+    </div>
+    <div id="unsupported" role="alert" hidden>
+        <h1>Steel Eagle could not start</h1>
+        <p id="unsupported-reason">This browser cannot run the game.</p>
+        <p>Try the current version of Chrome, Edge, Firefox or Safari.</p>
+    </div>
+    <div id="webApp"></div>
+</body>
+</html>

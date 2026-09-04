@@ -1,0 +1,42 @@
+[
+  {
+    "id": "grenade",
+    "score": 500,
+    "effect": "Destroy all currently visible enemies; usually no end-stage kill credit."
+  },
+  {
+    "id": "helmet",
+    "score": 500,
+    "effect": "Temporary invulnerability shield."
+  },
+  {
+    "id": "shovel",
+    "score": 500,
+    "effect": "Repair and temporarily reinforce base wall."
+  },
+  {
+    "id": "star",
+    "score": 500,
+    "effect": "Increase player offensive tier up to 4."
+  },
+  {
+    "id": "tank_life",
+    "score": 500,
+    "effect": "Extra life."
+  },
+  {
+    "id": "timer",
+    "score": 500,
+    "effect": "Freeze enemy tanks for a short period."
+  },
+  {
+    "id": "boat_1990_variant",
+    "score": 500,
+    "effect": "Variant mechanic: allow water traversal."
+  },
+  {
+    "id": "gun_1990_variant",
+    "score": 500,
+    "effect": "Variant mechanic: max firepower and absorb several hits."
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "symbol": ".",
+    "id": "empty",
+    "solidForTanks": false,
+    "solidForBullets": false
+  },
+  {
+    "symbol": "B",
+    "id": "brick",
+    "solidForTanks": true,
+    "solidForBullets": true,
+    "destructible": true,
+    "hpPerQuadrant": 1
+  },
+  {
+    "symbol": "S",
+    "id": "steel",
+    "solidForTanks": true,
+    "solidForBullets": true,
+    "destructible": "only tier 4 bullets"
+  },
+  {
+    "symbol": "F",
+    "id": "forest",
+    "solidForTanks": false,
+    "solidForBullets": false,
+    "renderLayer": "above tanks and bullets"
+  },
+  {
+    "symbol": "W",
+    "id": "water",
+    "solidForTanks": true,
+    "solidForBullets": false
+  },
+  {
+    "symbol": "I",
+    "id": "ice",
+    "solidForTanks": false,
+    "solidForBullets": false,
+    "physics": "low friction / slide"
+  },
+  {
+    "symbol": "H",
+    "id": "base",
+    "solidForTanks": true,
+    "solidForBullets": true,
+    "lossOnHit": true
+  }
+]

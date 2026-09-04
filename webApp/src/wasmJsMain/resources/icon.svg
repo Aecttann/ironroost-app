@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges" role="img" aria-label="Steel Eagle">
+    <rect width="16" height="16" fill="#1a1f28"/>
+    <!-- Treads -->
+    <rect x="2" y="3" width="3" height="10" fill="#5a6472"/>
+    <rect x="11" y="3" width="3" height="10" fill="#5a6472"/>
+    <rect x="3" y="4" width="1" height="1" fill="#c9d1dc"/>
+    <rect x="3" y="7" width="1" height="1" fill="#c9d1dc"/>
+    <rect x="3" y="10" width="1" height="1" fill="#c9d1dc"/>
+    <rect x="12" y="4" width="1" height="1" fill="#c9d1dc"/>
+    <rect x="12" y="7" width="1" height="1" fill="#c9d1dc"/>
+    <rect x="12" y="10" width="1" height="1" fill="#c9d1dc"/>
+    <!-- Hull -->
+    <rect x="5" y="4" width="6" height="9" fill="#3fa64b"/>
+    <rect x="6" y="7" width="4" height="4" fill="#7ede6b"/>
+    <!-- Barrel -->
+    <rect x="7" y="1" width="2" height="6" fill="#e7eaef"/>
+</svg>
