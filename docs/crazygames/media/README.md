@@ -11,12 +11,13 @@ recordings of real runs of the packaged web build — no mockups, no footage fro
 | `cover-landscape.png` | Landscape cover, 1920×1080 |
 | `cover-portrait.png` | Portrait cover, 800×1200 |
 | `cover-square.png` | Square cover, 800×800 |
-| `preview-landscape.mp4` | Landscape preview, 1920×1080, 30 fps, 18.2 s, silent |
-| `preview-portrait.mp4` | Portrait preview, 1080×1620 (2:3), 30 fps, 17.7 s, silent |
+| `preview-landscape.mp4` | Landscape preview, 1920×1080, 60 fps, 17.5 s, silent |
+| `preview-portrait.mp4` | Portrait preview, 1080×1620 (2:3), 60 fps, 17.5 s, silent |
 
-Both previews open on the matching static cover for just over a second, then cut to gameplay, as
-the portal requires. The title is the only text anywhere in the set; there are no borders, black
-bars, store badges or mouse cursors.
+Both previews are gameplay from the first frame to the last, with nothing added: two players in
+the endless arena, then a straight cut to two players on the forest stage of the campaign. The
+covers are uploaded on their own and appear nowhere in the videos. There are no borders, black
+bars, black transitions, store badges or mouse cursors; the only text is the game's own HUD.
 
 ## Rebuilding it
 
@@ -34,33 +35,53 @@ node docs/crazygames/media/serve.js
 
 **Covers** — open `http://localhost:8130/docs/crazygames/media/cover.html`, then run `saveAll()`
 in the console. The board layout, the camera each format points at it, and where the tanks stand
-are all at the top of that file.
+are all at the top of that file, together with `LABEL_ZONES`: the top-left corner the portal
+covers with its NEW / HOT badges, measured off the submission page's crop tool. `saveAll()`
+refuses to write a cover whose title or tanks reach into it; `renderAll({ showZones: true })`
+shades the zones in the preview.
 
-**Previews** — record a run, then cut it:
+**Previews** — record each route in both formats, then cut them together:
 
 ```powershell
-node docs/crazygames/media/record-gameplay.js landscape 26
-node docs/crazygames/media/build-preview.js landscape 0.5 17
+node docs/crazygames/media/record-gameplay.js landscape endless-coop 30 --seed 1
+node docs/crazygames/media/record-gameplay.js landscape campaign-coop 12 --seed 1
+node docs/crazygames/media/build-preview.js landscape endless-coop:20.3-29.8 campaign-coop:2.5-10.5
 ```
 
-`record-gameplay.js` launches its own headless Chrome on a throwaway profile — it never touches
-your browser — plays a fixed route from `capture.js`, and leaves the frames in a temp folder.
-`build-preview.js` takes the seconds you name out of that capture, scales them up, puts the cover
-in front and writes the MP4. Repeat with `portrait` for the other format. `ffmpeg` has to be on
-the path.
+Repeat with `portrait` for the other format; the same route and seed give the same run, frame
+for frame, so the two videos show the same fights. `ffmpeg` has to be on the path. If Node is not
+installed system-wide, the Kotlin Gradle plugin has already downloaded one:
+`~/.gradle/nodejs/node-*/node.exe`.
 
-Watch the fps line `record-gameplay.js` prints. Anything near twenty is a usable take; a much
-lower number means the capture stalled and the run is worth repeating.
+`record-gameplay.js` launches its own headless Chrome on a throwaway profile — it never touches
+your browser — plays a route from `routes.js` and leaves one PNG per frame in a temp folder, with
+a `capture-<format>-<route>.json` beside this file pointing at it. `build-preview.js` joins the
+named windows of those captures with straight cuts, adds nothing else, and refuses anything over
+the portal's twenty seconds.
+
+To find a seed worth recording, `--search 1-12` plays seeds without keeping frames and prints what
+happened in each: a cleared wave, or the run lost and when. Seed 1 is the one shipped; its base
+falls at 30.4 s, which is why the endless window stops at 29.8.
+
+The routes reach their modes by clicking measured viewport fractions, because the menu is painted
+on a canvas with nothing to query. Those fractions live in `MENU` in `capture.js` and only cover
+the two capture sizes — **a menu change moves them.** `beginRun` checks which stage the engine
+actually loaded and throws rather than recording the wrong mode.
 
 ### Why it is built this way
 
-Recording a WebGL canvas turned out to be the hard part. `MediaRecorder` stops feeding its stream
-two or three seconds into a take on a headless GPU, and the DevTools screencast stops after about
-seven, so both produce a few seconds of video and then a still frame. Grabbing the canvas and
-encoding a JPEG per frame inside the page keeps up with the game and never stalls, which is what
-`capture.js` does. The take is captured at 1280×720 and scaled up afterwards, because the browser
-manages roughly twenty-four frames a second at that size and about ten at 1600×900 — smooth beats
-sharp, and nearest-neighbour scaling of pixel art costs almost nothing.
+The first previews were grabbed in real time, and at 1080p the browser can encode about six
+frames a second while the game draws sixty, so they kept a fraction of the frames, unevenly
+spaced, and stuttered. Now the page runs on `virtual-clock.js`, installed ahead of the game's
+own scripts: `requestAnimationFrame`, `performance.now`, `Date.now` and timers all read a clock
+the recorder moves one sixtieth of a second per captured frame, however long that frame takes to
+save. Every frame the game draws is in the video, and the video runs at exactly the game's speed.
+The same file fixes `Math.random`, which the game draws each run's seed from, so with the inputs
+scripted too a take is fully reproducible — which is what lets one seed search serve both
+formats.
 
-The run in `capture.js` is deliberately cautious. An earlier route that charged up the board lost
-all three lives inside ten seconds and ended the take on the game-over screen.
+A script cannot see where the tanks are, so the co-op routes follow one rule that makes it safe
+anyway: a seat never fires facing down or towards the middle. The first co-op takes, which fired
+every way, shot their own base inside four seconds. The endless route parks each tank on the edge
+column below a corner spawn, the only way out of those corners, and fires up it; `routes.js` has
+the geometry.

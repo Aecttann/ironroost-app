@@ -88,7 +88,10 @@ per-frame input on that side of the line.
 
 - `:engine` — the simulation and meta rules: fixed timestep determinism, brick quarters,
   independent co-op player slots, stage status, endless wave scaling and deterministic upgrade
-  drafts, daily rewards, collection unlocks, records and level parser validation.
+  drafts, daily rewards, collection unlocks, records and level parser validation. The endless
+  loop is driven for real rather than checked as rules: a wave is cleared in a corridor fixture,
+  which is what pins the gate holding the board still, the queue refill, and each upgrade that
+  pays out at the rollover.
 - `:shared` — the packed resources: every stage parses and is playable, difficulty never goes
   backwards, no two stages share a map, every sprite and clip the code asks for is present,
   and every locale defines the same string keys. Also the input and sound rules the simulation
@@ -175,18 +178,37 @@ scroll instead of clipping actions below the canvas.
 
 ## Naming
 
-The display name is a placeholder: "Battle City" is a Namco trademark and cannot be a store
-title, so the app ships as **Steel Eagle** — named after the eagle base you defend. That name
-has *not* been checked against any trademark register; do that before publishing. Changing it
-means editing `app_name` in the eight `composeResources/values*/strings.xml` files and in
-`androidApp/src/main/res/values*/strings.xml` for the launcher label. The package, module and
-class names keep the `battlecity` spelling and are invisible to players.
+"Battle City" is a Namco trademark and cannot be a public title, so the game ships as
+**Ironroost** — iron for the tanks, roost for the eagle's nest you are defending.
+
+The name is a coined compound on purpose. It replaced an earlier "Steel Eagle", which had to go
+for two reasons that are worth keeping in mind before anyone proposes a new one:
+
+- a paid, currently listed PC game already uses that exact title, so the same name in the same
+  class of goods was a live conflict rather than a distant one;
+- two ordinary English words are a weak mark either way. They are easy to collide with, hard to
+  own, and they lose the search results to whoever got there first. A coined single token wins
+  both: nothing else ranks for it, and fanciful marks get the strongest protection if the
+  publisher ever registers one.
+
+A web screen of Ironroost found no game, product or well-known brand using it. That is a screen,
+not clearance — it cannot see a registered but unused mark. Before the name is committed to
+anywhere expensive, run it through TMview, the USPTO search and WIPO Global Brand Database
+filtered to **classes 9 and 41**, and sweep Steam, itch.io, Google Play and the App Store for
+unregistered use.
+
+Renaming again means `app_name` in the eight `composeResources/values*/strings.xml` files and in
+`androidApp/src/main/res/values*/strings.xml` for the launcher label, plus the page shell title,
+the `outputModuleName` and archive name in `webApp/build.gradle.kts`, the `ironroostPortal`
+global and storage prefix in `portal.js`, and the listing art under `docs/crazygames/media/`.
+The package, module and class names keep the `battlecity` spelling and are invisible to players.
 
 ## Not built yet
 
 - The portal preview and real-device passes in `docs/crazygames/QA_CHECKLIST.md`, which need
   the publisher's CrazyGames account and hardware.
-- A trademark search for “Steel Eagle”, and confirmation that the publisher owns the submitted
-  build and metadata. See `docs/crazygames/SUBMISSION.md`.
+- A registry trademark search for “Ironroost” in classes 9 and 41. A web screen found nothing
+  using the name, which is not the same as clearance. Also confirmation that the publisher owns
+  the submitted build and metadata. See `docs/crazygames/SUBMISSION.md`.
 - Difficulty is tuned by eye. The tests only guard the pathological cases — that a passive
   player is not wiped out before they could react. Real balance needs playtesting.

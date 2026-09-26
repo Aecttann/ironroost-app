@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Steel Eagle cover renderer</title>
+<title>Ironroost cover renderer</title>
 <style>
     body { margin: 0; background: #14181f; color: #e7eaef; font: 13px system-ui, sans-serif; }
     #stage { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; align-items: flex-start; }
@@ -20,7 +20,9 @@
  * to write the PNGs next to it.
  *
  * Portal rules this file obeys: the title is the only text, every format is full bleed with no
- * borders or black bars, and nothing is drawn that the project does not own.
+ * borders or black bars, and nothing is drawn that the project does not own. The portal also
+ * lays badges over the top-left corner of every cover; LABEL_ZONES holds that corner for each
+ * format, and a layout that puts the title or a tank inside it is refused rather than saved.
  *
  * One board is laid out once and each format points a camera at it, so the three covers show the
  * same fight from the same distance rather than three unrelated pictures.
@@ -99,14 +101,28 @@ async function loadSprites() {
 }
 
 /*
+ * The corner the portal covers with its NEW / HOT / UPDATED badges, as fractions of each cover,
+ * measured off the crop tool on the submission page. It is not the same shape in every format,
+ * which is why each title sits somewhere different.
+ */
+const LABEL_ZONES = {
+    landscape: { width: 0.402, height: 0.208 },
+    portrait: { width: 0.401, height: 0.099 },
+    square: { width: 0.352, height: 0.303 }
+};
+
+/*
  * Each format gets its own camera and its own cast. A frame two thirds as wide as it is tall
  * cannot hold the same arrangement as a 16:9 one, and the title band lands on a different part
  * of the board in each, so the tanks are placed per format to stay out from under it.
+ *
+ * titleX is where the title is centred. The wide formats move it right, clear of the label
+ * zone; the portrait zone is only a strip, so there the title stays centred just below it.
  */
 const LAYOUTS = {
     landscape: {
         width: 1920, height: 1080, tile: 96, originCol: 0.5, originRow: 6.75,
-        titleSize: 122, titleY: 0.13,
+        titleSize: 122, titleX: 0.7, titleY: 0.13,
         actors: [
             { sprite: "enemyFast", col: 3.4, row: 9.6, size: 2.0 },
             { sprite: "enemyBasic", col: 8.9, row: 9.4, size: 2.1 },
@@ -122,7 +138,7 @@ const LAYOUTS = {
     },
     portrait: {
         width: 800, height: 1200, tile: 80, originCol: 5, originRow: 3,
-        titleSize: 72, titleY: 0.112,
+        titleSize: 72, titleX: 0.5, titleY: 0.15,
         actors: [
             { sprite: "enemyFast", col: 6.1, row: 6.1, size: 2.0 },
             { sprite: "enemyBonus", col: 12.1, row: 6.2, size: 2.0 },
@@ -136,9 +152,11 @@ const LAYOUTS = {
         ],
         muzzle: { col: 10.75, row: 11.1 }
     },
+    // Pulled back a little from the others: the square's label zone reaches a third of the way
+    // down, and at the landscape's distance the enemy line would sit inside it.
     square: {
-        width: 800, height: 800, tile: 80, originCol: 5, originRow: 7.4,
-        titleSize: 70, titleY: 0.1,
+        width: 800, height: 800, tile: 70, originCol: 4.79, originRow: 5.8,
+        titleSize: 62, titleX: 0.68, titleY: 0.1,
         actors: [
             { sprite: "enemyFast", col: 5.9, row: 9.3, size: 2.0 },
             { sprite: "enemyBasic", col: 8.9, row: 9.1, size: 2.1 },
@@ -153,8 +171,29 @@ const LAYOUTS = {
     }
 };
 
+const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+/** Everything the portal's badges must not cover that lands in this format's label zone. */
+function labelZoneProblems(name, layout, titleBox) {
+    const zone = {
+        x: 0, y: 0,
+        width: LABEL_ZONES[name].width * layout.width,
+        height: LABEL_ZONES[name].height * layout.height
+    };
+    const x0 = -layout.originCol * layout.tile;
+    const y0 = -layout.originRow * layout.tile;
+    const problems = [];
+    if (overlaps(titleBox, zone)) problems.push(`${name}: the title reaches into the label zone`);
+    for (const actor of layout.actors) {
+        const size = actor.size * layout.tile;
+        const box = { x: x0 + actor.col * layout.tile, y: y0 + actor.row * layout.tile, width: size, height: size };
+        if (overlaps(box, zone)) problems.push(`${name}: ${actor.sprite} sits in the label zone`);
+    }
+    return { zone, problems };
+}
+
 function drawCover(canvas, layout) {
-    const { width, height, tile, originCol, originRow, titleSize, titleY, actors, muzzle } = layout;
+    const { width, height, tile, originCol, originRow, titleSize, titleX, titleY, actors, muzzle } = layout;
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
@@ -209,12 +248,12 @@ function drawCover(canvas, layout) {
     ctx.fillStyle = band;
     ctx.fillRect(0, 0, width, height * 0.36);
 
-    drawTitle(ctx, width, height * titleY, titleSize);
-    return canvas;
+    return drawTitle(ctx, width * titleX, height * titleY, titleSize);
 }
 
-function drawTitle(ctx, width, baseline, size) {
-    const text = "STEEL EAGLE";
+/** Draws the title centred on [x] and returns the box its ink and outline cover. */
+function drawTitle(ctx, x, baseline, size) {
+    const text = "IRONROOST";
     const spacing = Math.round(size * 0.07);
     ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
     ctx.textAlign = "center";
@@ -222,7 +261,7 @@ function drawTitle(ctx, width, baseline, size) {
     ctx.letterSpacing = `${spacing}px`;
 
     // Canvas adds the tracking after the last letter too, so centred text sits half a gap left.
-    const centre = width / 2 + spacing / 2;
+    const centre = x + spacing / 2;
 
     ctx.save();
     ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
@@ -243,17 +282,38 @@ function drawTitle(ctx, width, baseline, size) {
     ink.addColorStop(1, "#b8761c");
     ctx.fillStyle = ink;
     ctx.fillText(text, centre, baseline);
+
+    const metrics = ctx.measureText(text);
+    const outline = ctx.lineWidth / 2;
+    return {
+        x: centre - metrics.actualBoundingBoxLeft - outline,
+        y: baseline - metrics.actualBoundingBoxAscent - outline,
+        width: metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight + outline * 2,
+        height: metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + outline * 2
+    };
 }
 
-async function renderAll() {
+/**
+ * Draws every format. [showZones] outlines each label zone in the preview, never in a saved
+ * cover; [window.__coverProblems] lists anything that landed inside one.
+ */
+async function renderAll({ showZones = false } = {}) {
     await loadSprites();
     const stage = document.getElementById("stage");
     stage.innerHTML = "";
     const made = {};
+    const problems = [];
     for (const [name, layout] of Object.entries(LAYOUTS)) {
         const figure = document.createElement("figure");
         const canvas = document.createElement("canvas");
-        drawCover(canvas, layout);
+        const titleBox = drawCover(canvas, layout);
+        const check = labelZoneProblems(name, layout, titleBox);
+        problems.push(...check.problems);
+        if (showZones) {
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "rgba(230, 30, 110, 0.55)";
+            ctx.fillRect(check.zone.x, check.zone.y, check.zone.width, check.zone.height);
+        }
         const caption = document.createElement("figcaption");
         caption.textContent = `${name} ${layout.width}x${layout.height}`;
         figure.append(canvas, caption);
@@ -261,12 +321,14 @@ async function renderAll() {
         made[name] = canvas;
     }
     window.__covers = made;
-    return Object.keys(made);
+    window.__coverProblems = problems;
+    return problems.length ? problems : Object.keys(made);
 }
 
 /** Posts each cover to the render server, which writes it next to this file. */
 async function saveAll(endpoint = "/save") {
     await renderAll();
+    if (window.__coverProblems.length) throw new Error(window.__coverProblems.join("; "));
     const saved = [];
     for (const [name, canvas] of Object.entries(window.__covers)) {
         const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));

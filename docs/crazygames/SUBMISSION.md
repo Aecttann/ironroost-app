@@ -8,11 +8,12 @@ Build the production package from the project root:
 .\gradlew.bat :webApp:packageCrazyGamesBasic
 ```
 
-Upload `webApp/build/crazygames/steel-eagle-crazygames-basic.zip`. The archive contains a
-root `index.html` and only relative references to game files. Do not upload a development
-webpack build.
+Drag the folder `webApp/build/crazygames/ironroost-crazygames-basic` onto the portal's upload
+page; the portal takes a folder, not an archive. The task rebuilds that folder from scratch
+every run, so nothing from an earlier build can end up in it. It has a root `index.html` and
+only relative references to game files. Do not upload a development webpack build.
 
-The archive is roughly 4.7 MB — 156 files, 13.04 MiB raw and 4.63 MiB compressed, well inside
+The build is roughly 4.7 MB — 156 files, 13.08 MiB raw and 4.64 MiB compressed, well inside
 both the 50 MB Basic ceiling and the 20 MB mobile target. Source maps are not built for the
 production bundle, so the Kotlin sources are not shipped to players. Set the version the About
 screen shows with `-PreleaseVersionName=…`; it defaults to `1.0.0`.
@@ -25,7 +26,7 @@ durations and the rebuild steps are in that folder's README.
 
 ## Portal fields
 
-- **Title:** Steel Eagle
+- **Title:** Ironroost
 - **Technology:** HTML5 / WebAssembly
 - **Primary category:** Action
 - **Suggested tags:** Tank, Arcade, Retro, Singleplayer, 2 Player
@@ -49,21 +50,44 @@ Defend the eagle base through 35 stages or build an unstoppable tank in escalati
 
 ### Full description
 
-Steel Eagle is a top-down tank action game inspired by the feel of 1980s console arcades.
-Protect your eagle base, break through brick defenses and outmaneuver enemy waves in a 35-stage
-campaign, or enter Endless mode and choose a new build upgrade after every cleared wave. Play
-solo or share one keyboard in two-player local co-op. Daily rewards bank lives for the next run,
-while persistent collections and separate campaign and Endless records give every session a
-goal. Every map, sprite and sound was created for this project. Progress follows signed-in
-CrazyGames players through the Data Module and remains available to guests.
+Ironroost is a top-down tank shooter inspired by the classic 8-bit tank games. Enemy tanks roll
+in from the top of the map, and your job is to protect the eagle at the bottom. One hit on the
+eagle ends the game, however many lives you have left.
+
+The campaign has 35 stages. Brick walls break when you shoot them, but steel only gives way once
+your tank is fully upgraded. Water blocks the road, ice makes you slide, and trees hide anything
+under them. Destroy a flashing tank and it drops a bonus: a helmet that makes you invulnerable
+for ten seconds, a shovel that walls the eagle in with steel, a clock that stops the enemy in its
+tracks, a grenade that destroys every enemy tank on the screen, a star that makes your tank
+stronger, and a few others. Every 20,000 points earns an extra life.
+
+Endless mode is a single arena with waves that keep getting tougher. After each wave you pick an
+upgrade: faster reload, a second shell in the air, extra armor, shells that bounce off steel or
+break right through it. How far you get depends a lot on what you take.
+
+Both modes can be played with a friend on the same keyboard. Hit your partner by accident and
+their tank just freezes for a moment instead of blowing up.
+
+The daily reward gives you extra lives for your next run. There's also a collection to fill and
+personal records to beat in both modes, and the campaign saves your progress, so you can always
+pick up from the next stage.
 
 ### Controls
 
-- **Solo:** WASD or arrows to move; Space, Enter or Numpad 0 to fire
-- **Two-player local co-op:** P1 uses WASD + Space; P2 uses arrows + Enter or Numpad 0
-- **Touch:** On-screen directional pad and FIRE button; touch play is solo
-- **Pause / resume:** P or the on-screen PAUSE / START button
-- **Menus:** Mouse or touch
+Move: WASD or arrow keys (ZQSD also works on AZERTY keyboards)
+Shoot: Space
+Pause: P
+
+Two players on one keyboard:
+Player 1: WASD to move, Space to shoot
+Player 2: arrow keys to move, Enter or Numpad 0 to shoot
+
+Touch screen: joystick on the left to move, FIRE button on the right to shoot, pause button on
+screen. Two-player mode needs a keyboard.
+
+Not for the portal field: the touch pad drives player one only, so on a device with no keyboard
+the menu shows the two-player option disabled with the reason. Pressing any key enables it, since
+that is the first moment the browser build can tell a keyboard is there.
 
 ## Basic SDK integration
 
@@ -87,11 +111,28 @@ dormant until CrazyGames enables a leaderboard and the build is stamped with
 The same bridge also handles the things a portal iframe demands of any HTML5 game: it stops the
 arrow, space and paging keys from scrolling the host page, keeps the board scaled correctly when
 the window moves to a display with a different pixel density, and replaces the loading spinner
-with a readable message on a browser that cannot run WebAssembly GC.
+with a readable message on a browser that cannot run WebAssembly GC. On touch devices it has the
+game draw at 1x and lets the browser scale the picture up: at an iPad's native 2x the game ran as
+a slideshow in the CrazyGames app.
 
 ## Ownership note
 
-The public title is **Steel Eagle**. “Battle City” remains only in internal package/module names
+The public title is **Ironroost**. “Battle City” remains only in internal package/module names
 and must not be used in the portal listing or cover art. Asset provenance is documented in
-`docs/assets-kit/LEGAL_NOTE.md`. Before submission, the publisher still needs to perform a
-trademark search for “Steel Eagle” and confirm ownership of the submitted build and metadata.
+`docs/assets-kit/LEGAL_NOTE.md`.
+
+The title is a coined compound chosen so that nothing else competes for it. An earlier working
+name, “Steel Eagle”, was dropped because a currently listed commercial PC game uses that exact
+title — the same name for the same class of goods — and because two ordinary words would have
+left the game invisible in search behind it.
+
+Still open before submission:
+
+- A registry search for “Ironroost” in **class 9** (game software) and **class 41** (online
+  game services) via TMview, the USPTO search and WIPO Global Brand Database, plus a sweep of
+  Steam, itch.io, Google Play and the App Store for unregistered use. A web screen turned up no
+  game, product or known brand under the name; that is a screen, not clearance, and it cannot
+  see a mark that is registered but unused.
+- Confirmation that the publisher owns the submitted build and metadata.
+- The manual passes in `QA_CHECKLIST.md`: the local browser matrix, and the portal preview and
+  real-device checks that need the publisher's CrazyGames account.

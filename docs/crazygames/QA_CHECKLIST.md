@@ -41,7 +41,12 @@ Run the new retention paths as well:
 
 - start solo Endless, clear a wave, choose an upgrade and verify the HUD reflects its level;
 - finish an Endless run and verify its wave/score appears only on the Endless records tab;
+- confirm the first stage card of a visit holds long enough to read the controls, that a tap or
+  any key dismisses it at once, and that later cards are back to the short hold;
 - select two players and verify P1 uses WASD + Space while P2 independently uses arrows + Enter;
+- with touch emulation on and no keyboard, verify the two-player option is disabled and explains
+  why, and that New game and Endless both start a one-tank run. Then press any key and confirm the
+  option becomes selectable — the browser build only guesses until it sees a real key;
 - claim the daily reward, reload before starting a run, then start Campaign and Endless in
   separate clean-save passes; the banked lives must survive reload and be consumed exactly once;
 - unlock at least one collection card, reload and confirm its progress remains.
@@ -67,7 +72,7 @@ before. Walk them on at least one desktop layout:
 - **About names the build.** The version on the About screen must match `releaseVersionName`
   from the packaged build.
 - **Nothing extra shipped.** The distribution must contain no `.map` files and no absolute paths.
-- **SDK-before-game ordering.** Throttle the network: `steel-eagle.js` must not be requested until
+- **SDK-before-game ordering.** Throttle the network: `ironroost.js` must not be requested until
   SDK initialization and Data Module adoption have settled. A returning cloud save must be
   visible on the first rendered menu, without a second reload.
 
@@ -102,12 +107,13 @@ them and instructions for rebuilding after an art change:
 | Landscape cover 1920×1080 | `cover-landscape.png` | 1920×1080 |
 | Portrait cover 800×1200 | `cover-portrait.png` | 800×1200 |
 | Square cover 800×800 | `cover-square.png` | 800×800 |
-| Landscape video, 1080p 16:9, 15–20 s, muted | `preview-landscape.mp4` | 1920×1080, 30 fps, 18.2 s, no audio track |
-| Portrait video, 1080p 2:3, 15–20 s, muted | `preview-portrait.mp4` | 1080×1620, 30 fps, 17.7 s, no audio track |
+| Landscape video, 1080p 16:9, 15–20 s, muted | `preview-landscape.mp4` | 1920×1080, 60 fps, 17.5 s, no audio track |
+| Portrait video, 1080p 2:3, 15–20 s, muted | `preview-portrait.mp4` | 1080×1620, 60 fps, 17.5 s, no audio track |
 
-Both videos open on the matching static cover for 1.2 seconds and then cut to a recording of a
-real run of the packaged build. The title is the only text in the set, and there are no borders,
-black bars, store badges or a mouse cursor anywhere.
+Both videos are recordings of real runs of the packaged build from the first frame to the last,
+with no cover or anything else added. The covers carry the title and nothing else, the videos
+carry only the game's own HUD, and there are no borders, black bars, store badges or a mouse
+cursor anywhere.
 
 Check before uploading, since these are the rules a reviewer applies: only the title may be added
 as cover text, and no borders, “Play Now”, store/social icons, copyrighted material, black bars

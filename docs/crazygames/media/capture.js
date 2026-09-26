@@ -1,9 +1,11 @@
 /*
- * Runs inside the game page and records a real run off the game's own canvas.
+ * Runs inside the game page: gets from the menu into a run and plays it from a script.
  *
- * record-gameplay.js injects this file into a Chrome instance it launched, then awaits
- * captureGameplay(). Nothing here is part of the shipped game — it only presses the same buttons
- * and keys a player would, and hands the resulting WebM to serve.js.
+ * chrome-session.js injects this file into a Chrome instance running on virtual-clock.js, holds
+ * the clock and gets from the menu into a live stage; record-gameplay.js then starts the take
+ * with a route from routes.js and plays it frame by frame. Nothing here is part of the shipped
+ * game — it only presses the same buttons and keys a player would, and reads back what the game
+ * drew.
  */
 (() => {
     const PROBE_X = 0.5;          // Menu buttons are centred, so the middle column always hits them.
@@ -49,13 +51,70 @@
         pointer(target, "pointerup", x, y, 0);
     }
 
+    /** A click at a point given as fractions of the viewport. */
+    function tapAt(target, [x, y]) {
+        click(target, Math.round(innerWidth * x), Math.round(innerHeight * y));
+    }
+
     const KEYS = {
         up: ["ArrowUp", "ArrowUp", 38],
         down: ["ArrowDown", "ArrowDown", 40],
         left: ["ArrowLeft", "ArrowLeft", 37],
         right: ["ArrowRight", "ArrowRight", 39],
-        fire: ["Space", " ", 32]
+        fire: ["Space", " ", 32],
+        // Co-op splits the keyboard: WASD is player one, the arrows above become player two,
+        // and Enter is player two's trigger.
+        wasdUp: ["KeyW", "w", 87],
+        wasdDown: ["KeyS", "s", 83],
+        wasdLeft: ["KeyA", "a", 65],
+        wasdRight: ["KeyD", "d", 68],
+        enter: ["Enter", "Enter", 13],
+        pause: ["KeyP", "p", 80]
     };
+
+    /** Which physical keys a seat drives. Solo, one tank answers to the arrows and Space. */
+    const SEATS = {
+        solo: { up: "up", down: "down", left: "left", right: "right", fire: "fire" },
+        one: { up: "wasdUp", down: "wasdDown", left: "wasdLeft", right: "wasdRight", fire: "fire" },
+        two: { up: "up", down: "down", left: "left", right: "right", fire: "enter" }
+    };
+
+    /*
+     * Where the menu entries sit, as fractions of the viewport.
+     *
+     * Measured against the two capture sizes in record-gameplay.js, not guessed — and not
+     * portable to a third size. The menu lays out in dp, so the same button covers a different
+     * fraction of a different viewport, and above 700dp wide it switches to two columns. Both
+     * capture sizes happen to land on the wide layout.
+     *
+     * startGame() finds "New game" by probing because the first button that starts a run is
+     * unambiguous. Endless is not: it sits below New game, so probing would start the campaign
+     * before ever reaching it. Hence the coordinates, and hence the check in beginRun that the
+     * run we got is the run we asked for.
+     *
+     * `pauseStages` is the Stages button on the pause overlay and `campaignStage` the tile for
+     * CAMPAIGN_STAGE in the stage dialog that opens from it; the dialog lays tiles out four to a
+     * row, so a stage in its first rows is on screen without scrolling.
+     */
+    const MENU = {
+        "1280x720": {
+            twoPlayers: [0.559, 0.380], newGame: [0.465, 0.463], endless: [0.465, 0.540],
+            pauseStages: [0.5, 0.535], campaignStage: [0.448, 0.472]
+        },
+        "720x1080": {
+            twoPlayers: [0.557, 0.420], newGame: [0.465, 0.475], endless: [0.465, 0.528],
+            pauseStages: [0.5, 0.523], campaignStage: [0.408, 0.315]
+        }
+    };
+
+    /** The stage number the engine loads for an endless run; anything else means a wrong click. */
+    const ENDLESS_ARENA = 12;
+
+    /**
+     * The campaign stage the co-op route plays. Forest-heavy on purpose: next to the brick and
+     * steel of the endless arena it shows the other half of the tile set.
+     */
+    const CAMPAIGN_STAGE = 6;
 
     function key(target, name, type) {
         const [code, value, keyCode] = KEYS[name];
@@ -65,143 +124,295 @@
         }));
     }
 
-    /** Waits for the game to report that the stage is actually playable. */
-    function gameplayStarted() {
-        return new Promise(resolve => {
-            const portal = window.steelEaglePortal;
-            const original = portal.gameplayStart.bind(portal);
-            portal.gameplayStart = () => { resolve(); return original(); };
-        });
+    /*
+     * What happened during the take, by frame. Printed by record-gameplay.js and shown while
+     * authoring, so the moments worth cutting to can be found without scrubbing.
+     */
+    const takeLog = [];
+    let takeFrame = null;
+    function logTake(what) {
+        if (takeFrame !== null) takeLog.push({ frame: takeFrame, what });
     }
 
     /*
-     * A fixed run, so re-recording after an art change gives a comparable take. It plays the way
-     * a cautious player does: short moves, never sitting still, strafing across the lower half
-     * and facing up into the lanes the enemies come down rather than charging into them. Driving
-     * deep into the spawn corners loses all three lives in about ten seconds.
+     * The portal bridge is the only honest signal for what the game is doing: gameplayStart and
+     * gameplayStop bracket playable time, and setGameContext names the stage. Wrapping them once
+     * turns those into something the route can await, instead of sleeping and hoping.
      *
-     * Fire is tapped throughout rather than held; the cannon has a cooldown either way and the
-     * shells read better spaced out.
+     * submitScore marks the end of an endless run: the game hands the portal its score just
+     * before it stops gameplay, so by the time the stop arrives it is known to be a lost run
+     * rather than a cleared wave.
      */
-    const RUN = [
-        ["up", 600], ["right", 500], ["up", 400], ["left", 700],
-        ["up", 500], ["down", 400], ["left", 600], ["up", 500],
-        ["right", 800], ["up", 400], ["right", 500], ["down", 500],
-        ["left", 700], ["up", 600], ["left", 500], ["down", 400],
-        ["right", 600], ["up", 700], ["right", 400], ["up", 500],
-        ["left", 800], ["down", 500], ["left", 400], ["up", 600],
-        ["right", 700], ["up", 400], ["down", 600], ["right", 500],
-        ["up", 800], ["left", 600], ["down", 400], ["left", 500]
-    ];
+    const portalEvents = (() => {
+        const portal = window.ironroostPortal;
+        const waitingForStart = [];
+        let lastStage = null;
+        let runOver = false;
 
-    async function drive(target, seconds) {
-        const deadline = Date.now() + seconds * 1000;
-        let firing = true;
-        (async () => {
-            while (firing) {
-                key(target, "fire", "keydown");
-                await sleep(90);
-                key(target, "fire", "keyup");
-                await sleep(280);
+        const originalStart = portal.gameplayStart.bind(portal);
+        portal.gameplayStart = (...args) => {
+            waitingForStart.splice(0).forEach(resolve => resolve());
+            cardPick = null;
+            logTake("gameplay started");
+            return originalStart(...args);
+        };
+        const originalStop = portal.gameplayStop.bind(portal);
+        portal.gameplayStop = (...args) => {
+            logTake(runOver ? "run over" : "gameplay stopped (wave or stage cleared)");
+            if (!runOver && script.autoCards && takeFrame !== null) {
+                cardPick = { from: takeFrame + CARDS_ON_SCREEN_FRAMES, probe: 0 };
             }
-        })();
+            return originalStop(...args);
+        };
+        const originalContext = portal.setGameContext.bind(portal);
+        portal.setGameContext = stage => {
+            lastStage = Number(stage);
+            return originalContext(stage);
+        };
+        const originalSubmit = portal.submitScore.bind(portal);
+        portal.submitScore = score => {
+            runOver = true;
+            return originalSubmit(score);
+        };
 
-        let index = 0;
-        let held = null;
-        while (Date.now() < deadline) {
-            const [direction, ms] = RUN[index % RUN.length];
-            index++;
-            if (held) key(target, held, "keyup");
-            key(target, direction, "keydown");
-            held = direction;
-            await sleep(Math.min(ms, Math.max(0, deadline - Date.now())));
-        }
-        if (held) key(target, held, "keyup");
-        firing = false;
+        return {
+            nextStart: () => new Promise(resolve => waitingForStart.push(resolve)),
+            get stage() { return lastStage; },
+            get runOver() { return runOver; }
+        };
+    })();
+
+    /** Waits for the game to report that the stage is actually playable. */
+    function gameplayStarted() {
+        return portalEvents.nextStart();
     }
+
+    const within = (promise, ms) =>
+        Promise.race([promise.then(() => true), sleep(ms).then(() => false)]);
 
     async function startGame(target) {
         const started = gameplayStarted();
         for (let fraction = PROBE_FROM; fraction <= PROBE_TO; fraction += PROBE_STEP) {
             click(target, Math.round(innerWidth * PROBE_X), Math.round(innerHeight * fraction));
-            const hit = await Promise.race([started.then(() => true), sleep(400).then(() => false)]);
-            if (hit) return true;
+            if (await within(started, 400)) return true;
         }
-        return await Promise.race([started.then(() => true), sleep(10000).then(() => false)]);
+        return await within(started, 10000);
     }
 
-    /** Gets from the menu to a playable stage. The driver starts capturing once this returns. */
-    window.beginRun = async () => {
+    /** Menu coordinates for this viewport, with two players picked, or an error saying why not. */
+    async function pickTwoPlayers(target) {
+        const size = `${innerWidth}x${innerHeight}`;
+        const layout = MENU[size];
+        if (!layout) throw new Error(`no measured menu layout for ${size}; add one to MENU`);
+        // Without a keyboard the menu keeps the two-player button disabled, the click below
+        // does nothing, and the take would quietly be a solo run.
+        if (window.ironroostPortal?.hasPhysicalKeyboard !== true) {
+            throw new Error("this browser reports no keyboard, so co-op is not on offer");
+        }
+        tapAt(target, layout.twoPlayers);
+        await sleep(250);
+        return layout;
+    }
+
+    /**
+     * Gets from the menu to a playable stage; the take starts once this resolves.
+     *
+     * `campaign` is a solo run of stage one. `endless-coop` is two tanks on one keyboard in
+     * the endless arena, with its waves and upgrade cards. `campaign-coop` is the same two
+     * tanks on CAMPAIGN_STAGE, for the other half of the game.
+     */
+    async function beginRun(mode) {
         const target = await waitForCanvas();
-        await sleep(3000); // The menu paints a beat after the canvas exists.
-        if (!await startGame(target)) throw new Error("could not get past the menu");
-        await sleep(600); // Let the spawn settle so the take does not open on an empty board.
-        return { width: target.width, height: target.height };
-    };
+
+        if (mode === "endless-coop") {
+            const layout = await pickTwoPlayers(target);
+            const started = gameplayStarted();
+            tapAt(target, layout.endless);
+            if (!await within(started, 12000)) {
+                throw new Error("the endless run never started; the menu coordinates are stale");
+            }
+            // A mis-click that landed on New game would start the campaign and look almost
+            // right on screen, so the stage the engine actually loaded is checked rather than
+            // assumed.
+            if (portalEvents.stage !== ENDLESS_ARENA) {
+                throw new Error(
+                    `landed in stage ${portalEvents.stage}, not the endless arena; menu coordinates are stale`
+                );
+            }
+        } else if (mode === "campaign-coop") {
+            // New game always opens on stage one; the stage list lives on the pause overlay.
+            const layout = await pickTwoPlayers(target);
+            const firstStage = gameplayStarted();
+            tapAt(target, layout.newGame);
+            if (!await within(firstStage, 12000)) {
+                throw new Error("the campaign never started; the menu coordinates are stale");
+            }
+            await sleep(500);
+            key(target, "pause", "keydown");
+            key(target, "pause", "keyup");
+            await sleep(600);
+            tapAt(target, layout.pauseStages);
+            await sleep(600);
+            const chosenStage = gameplayStarted();
+            tapAt(target, layout.campaignStage);
+            if (!await within(chosenStage, 12000)) {
+                throw new Error("the chosen stage never started; the pause or stage coordinates are stale");
+            }
+            if (portalEvents.stage !== CAMPAIGN_STAGE) {
+                throw new Error(
+                    `landed in stage ${portalEvents.stage}, not stage ${CAMPAIGN_STAGE}; the stage tile coordinates are stale`
+                );
+            }
+        } else if (mode === "campaign") {
+            if (!await startGame(target)) throw new Error("could not get past the menu");
+        } else {
+            throw new Error(`unknown route mode ${mode}`);
+        }
+        return { stage: portalEvents.stage };
+    }
 
     /*
-     * Frames are grabbed and encoded here in the page rather than by MediaRecorder or the
-     * debugger's screencast: on a headless GPU the first stops feeding its stream after two or
-     * three seconds and the second after seven, while the game itself paints at sixty. Copying
-     * the canvas each frame and encoding a JPEG keeps up and never stalls.
+     * The run is played from a script: events keyed to frame numbers of the take, each either
+     * a seat's direction or trigger changing or a click on the board. With the clock and
+     * Math.random both fixed by virtual-clock.js, the same script on the same seed plays the
+     * same run in either format, so a route is played once and recorded twice.
      *
-     * The take is posted as one blob: a four byte frame count, then per frame a four byte length,
-     * an eight byte timestamp and the JPEG itself.
+     * A held trigger is tapped rather than held down — pressed for FIRE_HELD frames of every
+     * FIRE_PERIOD — which is how a player fires and reads better on screen as spaced shells.
      */
-    function pack(frames) {
-        const header = 4 + frames.length * 12;
-        const total = frames.reduce((sum, frame) => sum + frame.data.byteLength, header);
-        const out = new Uint8Array(total);
-        const view = new DataView(out.buffer);
-        view.setUint32(0, frames.length, true);
-        let cursor = 4;
-        for (const frame of frames) {
-            view.setUint32(cursor, frame.data.byteLength, true);
-            view.setFloat64(cursor + 4, frame.at, true);
-            out.set(new Uint8Array(frame.data), cursor + 12);
-            cursor += 12 + frame.data.byteLength;
-        }
-        return out;
+    const FIRE_PERIOD = 22;
+    const FIRE_HELD = 5;
+
+    /*
+     * Endless holds the board still between waves while the upgrade cards are up, and which frame
+     * that happens on depends on the run, so a script cannot name it. With autoCards set, the
+     * cards stay up long enough to read, then a probe down the centre column takes one — the
+     * cards are painted on the canvas, so there is nothing to query. Clicks land on fixed frames
+     * after the stop, which keeps the pick as reproducible as everything else.
+     */
+    const CARDS_ON_SCREEN_FRAMES = 90;
+    const CARD_PROBE_EVERY = 13;
+    const CARD_PROBES = [...Array(23).keys()].map(step => 0.34 + step * 0.02);
+    let cardPick = null;
+
+    const script = { events: [], next: 0, seats: {}, autoCards: false };
+
+    function seatState(name) {
+        return script.seats[name] ??= { dir: null, fire: false, since: 0, down: false };
     }
 
-    window.recordRun = async ({ seconds, name, quality = 0.92 }) => {
-        const target = canvas();
-        const off = new OffscreenCanvas(target.width, target.height);
-        const ctx = off.getContext("2d");
-        const frames = [];
+    function applyFrame(target) {
+        const frame = takeFrame;
+        while (script.next < script.events.length && script.events[script.next].frame <= frame) {
+            const event = script.events[script.next++];
+            if (event.click) {
+                tapAt(target, event.click);
+                continue;
+            }
+            const seat = SEATS[event.seat];
+            const state = seatState(event.seat);
+            if ("dir" in event && event.dir !== state.dir) {
+                if (state.dir) key(target, seat[state.dir], "keyup");
+                if (event.dir) key(target, seat[event.dir], "keydown");
+                state.dir = event.dir;
+            }
+            if ("fire" in event && event.fire !== state.fire) {
+                state.fire = event.fire;
+                state.since = frame;
+            }
+        }
+        for (const [name, state] of Object.entries(script.seats)) {
+            const want = state.fire && (frame - state.since) % FIRE_PERIOD < FIRE_HELD;
+            if (want !== state.down) {
+                key(target, SEATS[name].fire, want ? "keydown" : "keyup");
+                state.down = want;
+            }
+        }
+        if (cardPick && frame >= cardPick.from && (frame - cardPick.from) % CARD_PROBE_EVERY === 0) {
+            const fraction = CARD_PROBES[cardPick.probe++];
+            if (fraction === undefined) cardPick = null;
+            else tapAt(target, [0.5, fraction]);
+        }
+    }
 
-        let capturing = true;
-        let inFlight = 0;
-        let painted = 0;
-        const startedAt = performance.now();
+    let grabber = null;
 
-        const grab = () => {
-            painted++;
-            if (capturing) requestAnimationFrame(grab);
-            if (inFlight > 2) return; // Drop a frame rather than fall behind the game.
-            inFlight++;
-            const at = performance.now();
-            ctx.drawImage(target, 0, 0);
-            off.convertToBlob({ type: "image/jpeg", quality })
-                .then(blob => blob.arrayBuffer())
-                .then(data => { frames.push({ data, at }); })
-                .catch(() => {})
-                .finally(() => { inFlight--; });
-        };
-        requestAnimationFrame(grab);
+    /** Moves the game on one frame, applying the script, and hands the frame to [grab]. */
+    async function frame(grab) {
+        const { clock, target } = grabber;
+        applyFrame(target);
+        await clock.step(() => grab?.(target));
+        takeFrame++;
+    }
 
-        await drive(target, seconds);
-        capturing = false;
-        while (inFlight > 0) await sleep(50);
+    function encode(off, type, quality) {
+        return off.convertToBlob({ type, quality }).then(blob => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.slice(reader.result.indexOf(",") + 1));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+        }));
+    }
 
-        frames.sort((a, b) => a.at - b.at);
-        const elapsed = (performance.now() - startedAt) / 1000;
-        const response = await fetch(`/save/${name}`, { method: "POST", body: pack(frames) });
-        return {
-            bytes: Number(await response.text()),
-            frames: frames.length,
-            span: +((frames.at(-1).at - frames[0].at) / 1000).toFixed(1),
-            pageFps: +(painted / elapsed).toFixed(1)
-        };
+    window.ironroostCapture = {
+        /** Takes time away from the wall clock and fixes the dice, before anything that counts. */
+        hold(seed) {
+            const clock = window.__ironroostClock;
+            if (!clock) throw new Error("the page is not on the virtual clock; load virtual-clock.js first");
+            clock.hold(seed);
+            grabber = { clock, target: canvas() };
+            return true;
+        },
+
+        /** Steps [frames] frames outside the take, for the menu and the stage card. */
+        async idle(frames) {
+            for (let i = 0; i < frames; i++) await grabber.clock.step();
+        },
+
+        /** Starts getting to the stage; poll [beginState] while idling the clock forward. */
+        begin(mode) {
+            this.beginState = { done: false };
+            beginRun(mode).then(
+                result => { this.beginState = { done: true, ...result }; },
+                error => { this.beginState = { done: true, error: String(error?.message ?? error) }; }
+            );
+            return true;
+        },
+        beginState: { done: false },
+
+        /** Frame zero of the take, played from a route's [events]; see routes.js. */
+        startTake({ events = [], autoCards = false } = {}) {
+            const { target } = grabber;
+            const off = new OffscreenCanvas(target.width, target.height);
+            const ctx = off.getContext("2d", { alpha: false });
+            // Each frame replaces the last outright, so nothing from the previous one shows through.
+            ctx.globalCompositeOperation = "copy";
+            grabber.off = off;
+            grabber.ctx = ctx;
+            script.events = [...events].sort((a, b) => a.frame - b.frame);
+            script.next = 0;
+            script.autoCards = autoCards;
+            takeFrame = 0;
+            return { width: target.width, height: target.height };
+        },
+
+        /** Plays [frames] frames of the take without keeping them: a dry run of a route. */
+        async advance(frames) {
+            for (let i = 0; i < frames; i++) await frame();
+            return status();
+        },
+
+        /** Moves the game on by one frame of the take and hands back what it drew, as base64 PNG. */
+        async captureFrame() {
+            await frame(source => grabber.ctx.drawImage(source, 0, 0));
+            return await encode(grabber.off, "image/png");
+        },
+
+        status,
+        get events() { return script.events; }
     };
+
+    function status() {
+        return { frame: takeFrame, runOver: portalEvents.runOver, stage: portalEvents.stage, log: takeLog };
+    }
 })();
