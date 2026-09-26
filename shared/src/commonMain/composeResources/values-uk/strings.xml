@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">Вкажіть ціле число від 0 до 130.</string>
     <string name="ads_age_continue">Продовжити</string>
     <string name="ads_age_skip">Пропустити</string>
+    <string name="resurrection_cooldown">Наступна спроба перегляду для воскресіння через %1$d с.</string>
+    <string name="daily_freeze_offer">За рекламу можна отримати одну заморозку стріку раз на 48 годин. Збережіть її наперед або захистіть уже пропущений день до отримання сьогоднішньої нагороди. Кілька пропущених днів вона не покриває.</string>
+    <string name="daily_freeze_watch">Переглянути рекламу · +1 заморозка</string>
+    <string name="daily_freeze_stored">Збережено 1 заморозку. Вона захистить стрік від одного пропущеного дня.</string>
+    <string name="daily_freeze_protect_claim">Отримання сьогоднішньої нагороди витратить одну заморозку й збереже стрік.</string>
+    <string name="daily_freeze_cooldown">Наступна спроба перегляду для заморозки приблизно через %1$d год.</string>
+    <string name="daily_freeze_unavailable">Реклама зараз недоступна.</string>
+    <string name="daily_freeze_not_earned">Заморозку не отримано: винагороду за рекламу не завершено.</string>
 </resources>

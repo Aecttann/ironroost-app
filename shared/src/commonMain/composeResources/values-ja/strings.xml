@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">0から130までの整数を入力してください。</string>
     <string name="ads_age_continue">続ける</string>
     <string name="ads_age_skip">スキップ</string>
+    <string name="resurrection_cooldown">復活用の広告は %1$d 秒後に再試行できます。</string>
+    <string name="daily_freeze_offer">48時間ごとに広告で連続記録の保護を1つ獲得できます。事前に保存するか、今日の報酬を受け取る前に、すでに逃した1日を保護できます。複数日の欠席は保護できません。</string>
+    <string name="daily_freeze_watch">広告を見る · 保護 +1</string>
+    <string name="daily_freeze_stored">保護を1つ保存済み。逃した1日から連続記録を守ります。</string>
+    <string name="daily_freeze_protect_claim">今日の報酬を受け取ると保護を1つ消費し、連続記録を維持します。</string>
+    <string name="daily_freeze_cooldown">保護用の広告は約 %1$d 時間後に再試行できます。</string>
+    <string name="daily_freeze_unavailable">現在、広告を利用できません。</string>
+    <string name="daily_freeze_not_earned">保護は獲得できませんでした。広告の報酬条件が未達成です。</string>
 </resources>

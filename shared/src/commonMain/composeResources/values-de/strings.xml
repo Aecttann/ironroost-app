@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">Gib eine ganze Zahl von 0 bis 130 ein.</string>
     <string name="ads_age_continue">Weiter</string>
     <string name="ads_age_skip">Überspringen</string>
+    <string name="resurrection_cooldown">Nächster Versuch einer Wiederbelebungsanzeige in %1$d Sek.</string>
+    <string name="daily_freeze_offer">Eine Anzeige bringt alle 48 Stunden einen Serien-Schutz. Spare ihn im Voraus oder sichere einen bereits verpassten Tag, bevor du die heutige Belohnung abholst. Weitere verpasste Tage sind nicht geschützt.</string>
+    <string name="daily_freeze_watch">Anzeige ansehen · +1 Serien-Schutz</string>
+    <string name="daily_freeze_stored">1 Serien-Schutz gespeichert. Er schützt deine Serie bei einem verpassten Tag.</string>
+    <string name="daily_freeze_protect_claim">Die heutige Belohnung verbraucht einen Serien-Schutz und erhält deine Serie.</string>
+    <string name="daily_freeze_cooldown">Nächster Versuch einer Schutz-Anzeige in etwa %1$d Std.</string>
+    <string name="daily_freeze_unavailable">Derzeit ist keine Anzeige verfügbar.</string>
+    <string name="daily_freeze_not_earned">Kein Serien-Schutz erhalten: Die Anzeigenbelohnung wurde nicht abgeschlossen.</string>
 </resources>

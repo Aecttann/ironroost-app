@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">0부터 130까지의 정수를 입력하세요.</string>
     <string name="ads_age_continue">계속</string>
     <string name="ads_age_skip">건너뛰기</string>
+    <string name="resurrection_cooldown">부활 광고는 %1$d초 후에 다시 시도할 수 있습니다.</string>
+    <string name="daily_freeze_offer">48시간마다 광고로 연속 기록 보호 1개를 얻을 수 있습니다. 미리 저장하거나 오늘 보상을 받기 전에 이미 놓친 하루를 보호하세요. 여러 날을 놓친 경우에는 보호되지 않습니다.</string>
+    <string name="daily_freeze_watch">광고 보기 · 기록 보호 +1</string>
+    <string name="daily_freeze_stored">보호 1개가 저장되었습니다. 하루를 놓쳐도 연속 기록을 지켜줍니다.</string>
+    <string name="daily_freeze_protect_claim">오늘 보상을 받으면 보호 1개를 사용하고 연속 기록을 유지합니다.</string>
+    <string name="daily_freeze_cooldown">보호 광고는 약 %1$d시간 후에 다시 시도할 수 있습니다.</string>
+    <string name="daily_freeze_unavailable">지금은 광고를 이용할 수 없습니다.</string>
+    <string name="daily_freeze_not_earned">보호를 얻지 못했습니다. 광고 보상 조건이 완료되지 않았습니다.</string>
 </resources>

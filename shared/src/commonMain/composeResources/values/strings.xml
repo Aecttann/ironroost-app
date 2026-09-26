@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">Enter a whole number from 0 to 130.</string>
     <string name="ads_age_continue">Continue</string>
     <string name="ads_age_skip">Skip</string>
+    <string name="resurrection_cooldown">Try another resurrection ad in %1$d s.</string>
+    <string name="daily_freeze_offer">An ad earns one streak freeze every 48 hours. Save it in advance or protect one already missed day before claiming today’s reward. Extra missed days are not covered.</string>
+    <string name="daily_freeze_watch">Watch ad · +1 streak freeze</string>
+    <string name="daily_freeze_stored">1 freeze saved. It protects your streak from one missed day.</string>
+    <string name="daily_freeze_protect_claim">Claiming today’s reward will use one freeze and preserve your streak.</string>
+    <string name="daily_freeze_cooldown">Try another freeze ad in about %1$d h.</string>
+    <string name="daily_freeze_unavailable">An ad is unavailable right now.</string>
+    <string name="daily_freeze_not_earned">No freeze earned. The ad reward was not completed.</string>
 </resources>

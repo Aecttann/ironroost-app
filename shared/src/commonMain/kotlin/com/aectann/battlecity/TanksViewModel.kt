@@ -106,7 +106,9 @@ data class TanksSession(
     val upgradeChoices: List<TanksUpgrade> = emptyList(),
     val canResurrect: Boolean = false,
     val resurrectionInProgress: Boolean = false,
-    val resurrectionResult: ResurrectionAdResult? = null
+    val resurrectionResult: RewardedAdResult? = null,
+    val streakFreezeInProgress: Boolean = false,
+    val streakFreezeResult: RewardedAdResult? = null
 ) {
     val playerCount: Int get() = carriedLives.size
     val isCoop: Boolean get() = playerCount > 1
@@ -130,7 +132,9 @@ data class TanksMetaUi(
      * itself cannot be read back — see [TanksPortal.submitScore] — so this only decides whether
      * the records screen says a run also left the device.
      */
-    val hasPortalLeaderboard: Boolean
+    val hasPortalLeaderboard: Boolean,
+    val canEarnStreakFreeze: Boolean = false,
+    val streakFreezeCooldownHours: Int = 0
 )
 
 sealed interface TanksMessage {
@@ -533,7 +537,7 @@ class TanksViewModel(
         val running = engine ?: return
         val loss = pendingLoss ?: return
         if (current.phase != TanksPhase.GameOver || !current.canResurrect ||
-            current.resurrectionInProgress || !ads.supportsResurrection) return
+            current.resurrectionInProgress || current.streakFreezeInProgress || !ads.supportsResurrection) return
 
         _session.value = current.copy(resurrectionInProgress = true, resurrectionResult = null)
         viewModelScope.launch {
@@ -543,11 +547,11 @@ class TanksViewModel(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    ResurrectionAdResult.Failed
+                    RewardedAdResult.Failed
                 }
                 // A reward belongs only to the engine and loss that initiated the request.
                 if (engine !== running || pendingLoss !== loss) return@launch
-                val restored = if (result == ResurrectionAdResult.Earned) running.resurrect() else null
+                val restored = if (result == RewardedAdResult.Earned) running.resurrect() else null
                 if (restored != null) {
                     metaRepository.discardPendingLoss()
                     pendingLoss = null
@@ -598,6 +602,7 @@ class TanksViewModel(
 
     /** Takes today's daily reward, if one is due. */
     fun claimDaily() {
+        if (_session.value.streakFreezeInProgress) return
         val before = metaRepository.dailyStatus()
         if (before.availability != TanksDailyAvailability.Claimable) return
         metaRepository.claimDaily()
@@ -605,6 +610,34 @@ class TanksViewModel(
         _messages.tryEmit(
             TanksMessage.DailyClaimed(before.reward.bonusLives, before.reward.cardId)
         )
+    }
+
+    fun refreshDailyStatus() {
+        metaRepository.touch()
+        refreshMeta()
+    }
+
+    fun earnStreakFreezeWithAd(ads: TanksAds) {
+        val current = _session.value
+        if (current.streakFreezeInProgress || current.resurrectionInProgress ||
+            !ads.supportsStreakFreeze || !metaRepository.canEarnStreakFreeze()) return
+        _session.value = current.copy(streakFreezeInProgress = true, streakFreezeResult = null)
+        viewModelScope.launch {
+            try {
+                val result = try {
+                    ads.showStreakFreeze()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    RewardedAdResult.Failed
+                }
+                val applied = result != RewardedAdResult.Earned || metaRepository.earnStreakFreeze()
+                _session.value = _session.value.copy(streakFreezeResult = if (applied) result else RewardedAdResult.Unavailable)
+                refreshMeta()
+            } finally {
+                _session.value = _session.value.copy(streakFreezeInProgress = false)
+            }
+        }
     }
 
     fun setNickname(raw: String) {
@@ -645,7 +678,9 @@ class TanksViewModel(
             collectionUnlocked = TanksCollection.unlockedCount(save.stats, save.awardedCards),
             collectionTotal = TanksCollection.cards.size,
             pendingBonusLives = save.daily.pendingBonusLives,
-            hasPortalLeaderboard = portal.hasLeaderboard
+            hasPortalLeaderboard = portal.hasLeaderboard,
+            canEarnStreakFreeze = metaRepository.canEarnStreakFreeze(),
+            streakFreezeCooldownHours = ((metaRepository.streakFreezeCooldownRemaining() + 3_599_999) / 3_600_000).toInt()
         )
     }
 }

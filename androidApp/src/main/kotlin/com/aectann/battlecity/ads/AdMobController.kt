@@ -6,11 +6,14 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.aectann.battlecity.BuildConfig
-import com.aectann.battlecity.ResurrectionAdAvailability
-import com.aectann.battlecity.ResurrectionAdResult
+import com.aectann.battlecity.RewardedAdAvailability
+import com.aectann.battlecity.RewardedAdResult
 import com.aectann.battlecity.TanksAds
 import com.aectann.battlecity.TanksAdsState
 import com.aectann.battlecity.TanksAdAudience
+import com.aectann.battlecity.TanksAdFrequencyStore
+import com.aectann.battlecity.TanksRewardedPlacement
+import com.aectann.battlecity.createAndroidTanksKeyValueStore
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AgeRestrictedTreatment
@@ -47,26 +50,27 @@ class AdMobController(
     private val mutableState = MutableStateFlow(TanksAdsState())
     override val state = mutableState.asStateFlow()
     override val supportsResurrection = true
+    override val supportsStreakFreeze = true
 
     private var closed = false
     private var consentStarted = false
     private var consentBusy = false
     private var initializationStarted = false
     private var initialized = false
-    private var loadGeneration = 0
-    private var loading = false
-    private var cachedAd: RewardedInterstitialAd? = null
-    private var loadedAt = 0L
-    private var retryDelayMillis = InitialRetryMillis
-    private var refreshJob: Job? = null
+    private val frequency = TanksAdFrequencyStore(createAndroidTanksKeyValueStore(activity), System::currentTimeMillis)
+    private val slots = mapOf(
+        TanksRewardedPlacement.Resurrection to RewardedSlot(TanksRewardedPlacement.Resurrection, BuildConfig.RESURRECTION_AD_UNIT_ID, true),
+        TanksRewardedPlacement.StreakFreeze to RewardedSlot(TanksRewardedPlacement.StreakFreeze, BuildConfig.STREAK_FREEZE_AD_UNIT_ID, false)
+    )
     private var presentation: Presentation? = null
 
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         when (event) {
             Lifecycle.Event.ON_RESUME -> {
                 if (!consentBusy && (!consentStarted || !consent.canRequestAds())) gatherConsent()
-                else if (!consentBusy) loadResurrection()
+                else if (!consentBusy) loadRewardedAds()
             }
+            Lifecycle.Event.ON_PAUSE -> slots.values.forEach { it.refreshJob?.cancel() }
             Lifecycle.Event.ON_DESTROY -> close()
             else -> Unit
         }
@@ -139,7 +143,7 @@ class AdMobController(
                 }
             }
         } else if (initialized) {
-            loadResurrection()
+            loadRewardedAds()
         }
     }
 
@@ -164,64 +168,34 @@ class AdMobController(
         }
     }
 
-    private fun loadResurrection() {
-        if (closed || !isResumed() || !mutableState.value.canRequestAds || !consent.canRequestAds() ||
-            loading || presentation != null) return
-        if (cachedAd != null && SystemClock.elapsedRealtime() - loadedAt < CacheLifetimeMillis) return
-        cachedAd = null
-        loading = true
-        refreshJob?.cancel()
-        val generation = ++loadGeneration
-        mutableState.value = mutableState.value.copy(resurrection = ResurrectionAdAvailability.Loading)
-        RewardedInterstitialAd.load(
-            activity.applicationContext,
-            BuildConfig.RESURRECTION_AD_UNIT_ID,
-            AdRequest.Builder().build(),
-            object : RewardedInterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: RewardedInterstitialAd) {
-                    if (closed || generation != loadGeneration) return
-                    loading = false
-                    cachedAd = ad
-                    loadedAt = SystemClock.elapsedRealtime()
-                    retryDelayMillis = InitialRetryMillis
-                    mutableState.value = mutableState.value.copy(resurrection = ResurrectionAdAvailability.Ready)
-                    scheduleLoad(CacheLifetimeMillis)
-                }
+    private fun loadRewardedAds() = slots.values.forEach { it.load() }
 
-                override fun onAdFailedToLoad(error: LoadAdError) {
-                    if (closed || generation != loadGeneration) return
-                    loading = false
-                    mutableState.value = mutableState.value.copy(resurrection = ResurrectionAdAvailability.Unavailable)
-                    Log.w(Tag, "Resurrection load: ${error.code}: ${error.message}")
-                    scheduleLoad(retryDelayMillis)
-                    retryDelayMillis = (retryDelayMillis * 2).coerceAtMost(MaxRetryMillis)
-                }
-            }
-        )
+    override fun prepareStreakFreeze(enabled: Boolean) {
+        val slot = slots.getValue(TanksRewardedPlacement.StreakFreeze)
+        if (slot.requested == enabled) return
+        slot.requested = enabled
+        if (enabled) slot.load() else slot.invalidate()
     }
 
-    private fun scheduleLoad(delayMillis: Long) {
-        refreshJob?.cancel()
-        refreshJob = scope.launch {
-            delay(delayMillis)
-            loadResurrection()
-        }
-    }
+    override suspend fun showResurrection() = showRewarded(TanksRewardedPlacement.Resurrection)
 
-    override suspend fun showResurrection(): ResurrectionAdResult = withContext(Dispatchers.Main.immediate) {
-        val ad = cachedAd
+    override suspend fun showStreakFreeze() = showRewarded(TanksRewardedPlacement.StreakFreeze)
+
+    private suspend fun showRewarded(placement: TanksRewardedPlacement): RewardedAdResult = withContext(Dispatchers.Main.immediate) {
+        val slot = slots.getValue(placement)
+        val ad = slot.cachedAd
         if (closed || ad == null || !isResumed() || presentation != null ||
-            !mutableState.value.canRequestAds || !consent.canRequestAds() ||
-            SystemClock.elapsedRealtime() - loadedAt >= CacheLifetimeMillis) {
-            loadResurrection()
-            return@withContext ResurrectionAdResult.Unavailable
+            !slot.requested || !mutableState.value.canRequestAds || !consent.canRequestAds() ||
+            mutableState.value.fullScreenShowing || mutableState.value.privacyOptionsBusy ||
+            frequency.remainingMillis(placement) > 0 ||
+            SystemClock.elapsedRealtime() - slot.loadedAt >= CacheLifetimeMillis) {
+            slot.load()
+            return@withContext RewardedAdResult.Unavailable
         }
-        cachedAd = null
-        refreshJob?.cancel()
-        mutableState.value = mutableState.value.copy(
-            resurrection = ResurrectionAdAvailability.Unavailable,
-            fullScreenShowing = true
-        )
+        slot.cachedAd = null
+        slot.refreshJob?.cancel()
+        slot.publish(RewardedAdAvailability.Unavailable)
+        mutableState.value = mutableState.value.copy(fullScreenShowing = true)
         suspendCancellableCoroutine { continuation ->
             val showing = Presentation(continuation)
             presentation = showing
@@ -229,42 +203,127 @@ class AdMobController(
                 scope.launch { if (presentation === showing) showing.continuation = null }
             }
             ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdShowedFullScreenContent() {
+                    if (presentation === showing && !showing.shown) {
+                        showing.shown = true
+                        frequency.recordShown(placement)
+                    }
+                }
+
                 override fun onAdDismissedFullScreenContent() {
-                    completePresentation(showing, ResurrectionAdResult.NotEarned)
+                    completePresentation(showing, RewardedAdResult.NotEarned)
                 }
 
                 override fun onAdFailedToShowFullScreenContent(error: AdError) {
-                    Log.w(Tag, "Resurrection show: ${error.code}: ${error.message}")
-                    completePresentation(showing, ResurrectionAdResult.Failed)
+                    Log.w(Tag, "$placement show: ${error.code}: ${error.message}")
+                    completePresentation(showing, RewardedAdResult.Failed)
                 }
             }
             try {
                 ad.show(activity) { if (presentation === showing) showing.earned = true }
             } catch (error: RuntimeException) {
-                Log.w(Tag, "Resurrection show failed", error)
-                completePresentation(showing, ResurrectionAdResult.Failed)
+                Log.w(Tag, "$placement show failed", error)
+                completePresentation(showing, RewardedAdResult.Failed)
             }
         }
     }
 
-    private fun completePresentation(showing: Presentation, fallback: ResurrectionAdResult) {
+    private fun completePresentation(showing: Presentation, fallback: RewardedAdResult) {
         if (presentation !== showing) return
         presentation = null
         mutableState.value = mutableState.value.copy(fullScreenShowing = false)
         val continuation = showing.continuation
         showing.continuation = null
         if (continuation?.isActive == true) {
-            continuation.resume(if (showing.earned) ResurrectionAdResult.Earned else fallback)
+            continuation.resume(if (showing.earned) RewardedAdResult.Earned else fallback)
         }
-        loadResurrection()
+        loadRewardedAds()
     }
 
     private fun invalidateCache() {
-        loadGeneration++
-        cachedAd = null
-        loading = false
-        refreshJob?.cancel()
-        mutableState.value = mutableState.value.copy(resurrection = ResurrectionAdAvailability.Unavailable)
+        slots.values.forEach { it.invalidate() }
+    }
+
+    private inner class RewardedSlot(
+        val placement: TanksRewardedPlacement,
+        val adUnitId: String,
+        var requested: Boolean
+    ) {
+        var cachedAd: RewardedInterstitialAd? = null
+        var loadedAt = 0L
+        var refreshJob: Job? = null
+        private var generation = 0
+        private var loading = false
+        private var retryDelayMillis = InitialRetryMillis
+
+        fun load() {
+            if (closed || !requested || !isResumed() || !mutableState.value.canRequestAds ||
+                !consent.canRequestAds() || mutableState.value.fullScreenShowing ||
+                mutableState.value.privacyOptionsBusy || presentation != null) return
+            val remaining = frequency.remainingMillis(placement)
+            if (remaining > 0) {
+                invalidate()
+                publish(RewardedAdAvailability.CoolingDown, remaining)
+                schedule(remaining.coerceAtMost(if (placement == TanksRewardedPlacement.Resurrection) 1000L else 60_000L))
+                return
+            }
+            if (loading) return
+            val lifetimeLeft = CacheLifetimeMillis - (SystemClock.elapsedRealtime() - loadedAt)
+            if (cachedAd != null && lifetimeLeft > 0) {
+                publish(RewardedAdAvailability.Ready)
+                schedule(lifetimeLeft)
+                return
+            }
+            cachedAd = null
+            loading = true
+            refreshJob?.cancel()
+            val request = ++generation
+            publish(RewardedAdAvailability.Loading)
+            RewardedInterstitialAd.load(activity.applicationContext, adUnitId, AdRequest.Builder().build(),
+                object : RewardedInterstitialAdLoadCallback() {
+                    override fun onAdLoaded(ad: RewardedInterstitialAd) {
+                        if (closed || request != generation) return
+                        loading = false
+                        cachedAd = ad
+                        loadedAt = SystemClock.elapsedRealtime()
+                        retryDelayMillis = InitialRetryMillis
+                        publish(RewardedAdAvailability.Ready)
+                        schedule(CacheLifetimeMillis)
+                    }
+
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        if (closed || request != generation) return
+                        loading = false
+                        publish(RewardedAdAvailability.Unavailable)
+                        Log.w(Tag, "$placement load: ${error.code}: ${error.message}")
+                        schedule(retryDelayMillis)
+                        retryDelayMillis = (retryDelayMillis * 2).coerceAtMost(MaxRetryMillis)
+                    }
+                })
+        }
+
+        fun publish(availability: RewardedAdAvailability, remaining: Long = 0) {
+            val current = mutableState.value
+            mutableState.value = when (placement) {
+                TanksRewardedPlacement.Resurrection -> current.copy(resurrection = availability,
+                    resurrectionCooldownSeconds = ((remaining + 999) / 1000).toInt())
+                TanksRewardedPlacement.StreakFreeze -> current.copy(streakFreeze = availability,
+                    streakFreezeCooldownHours = ((remaining + 3_599_999) / 3_600_000).toInt())
+            }
+        }
+
+        private fun schedule(delayMillis: Long) {
+            refreshJob?.cancel()
+            refreshJob = scope.launch { delay(delayMillis); load() }
+        }
+
+        fun invalidate() {
+            generation++
+            cachedAd = null
+            loading = false
+            refreshJob?.cancel()
+            publish(RewardedAdAvailability.Unavailable)
+        }
     }
 
     private fun isResumed() = activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) &&
@@ -276,12 +335,13 @@ class AdMobController(
         mutableState.value = mutableState.value.copy(canRequestAds = false, fullScreenShowing = false)
         activity.lifecycle.removeObserver(lifecycleObserver)
         invalidateCache()
-        presentation?.let { completePresentation(it, ResurrectionAdResult.Unavailable) }
+        presentation?.let { completePresentation(it, RewardedAdResult.Unavailable) }
         scope.cancel()
     }
 
-    private class Presentation(var continuation: CancellableContinuation<ResurrectionAdResult>?) {
+    private class Presentation(var continuation: CancellableContinuation<RewardedAdResult>?) {
         var earned = false
+        var shown = false
     }
 
     private companion object {

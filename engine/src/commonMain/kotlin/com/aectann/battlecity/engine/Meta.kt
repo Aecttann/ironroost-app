@@ -32,7 +32,9 @@ data class TanksDailyState(
     val bestStreak: Int = 0,
     val claimedTotal: Int = 0,
     /** Lives banked for the next run, spent when a run starts. */
-    val pendingBonusLives: Int = 0
+    val pendingBonusLives: Int = 0,
+    val streakFreezeStored: Boolean = false,
+    val lastStreakFreezeEarnedAtMillis: Long? = null
 )
 
 enum class TanksDailyAvailability {
@@ -54,7 +56,9 @@ data class TanksDailyStatus(
     val bestStreak: Int,
     /** True when the last claim was more than a day ago, so claiming restarts the streak. */
     val streakWillReset: Boolean,
-    val reward: TanksDailyReward
+    val reward: TanksDailyReward,
+    val streakFreezeStored: Boolean = false,
+    val streakFreezeWillBeUsed: Boolean = false
 )
 
 /**
@@ -68,6 +72,7 @@ data class TanksDailyStatus(
 object TanksDailyRewards {
 
     const val CycleLength = 7
+    const val StreakFreezeCooldownMillis = 48 * 60 * 60 * 1000L
 
     /** Starting lives can be topped up to this, no further. */
     const val MaxStartingLives = 6
@@ -91,7 +96,9 @@ object TanksDailyRewards {
             today == state.lastClaimDay -> TanksDailyAvailability.Claimed
             else -> TanksDailyAvailability.Claimable
         }
-        val continues = state.lastClaimDay >= 0 && today == state.lastClaimDay + 1
+        val usesFreeze = state.streakFreezeStored && state.streak > 0 &&
+            state.lastClaimDay >= 0 && today.toLong() == state.lastClaimDay.toLong() + 2
+        val continues = state.lastClaimDay >= 0 && (today == state.lastClaimDay + 1 || usesFreeze)
         val nextStreak = when {
             availability != TanksDailyAvailability.Claimable -> state.streak.coerceAtLeast(1)
             continues -> state.streak + 1
@@ -105,7 +112,9 @@ object TanksDailyRewards {
             bestStreak = state.bestStreak,
             streakWillReset = availability == TanksDailyAvailability.Claimable &&
                 !continues && state.streak > 0,
-            reward = rewardFor(cycleDay)
+            reward = rewardFor(cycleDay),
+            streakFreezeStored = state.streakFreezeStored,
+            streakFreezeWillBeUsed = availability == TanksDailyAvailability.Claimable && usesFreeze
         )
     }
 
@@ -115,7 +124,8 @@ object TanksDailyRewards {
         if (status.availability != TanksDailyAvailability.Claimable) {
             return state.copy(lastSeenDay = maxOf(state.lastSeenDay, today))
         }
-        val newStreak = if (state.lastClaimDay >= 0 && today == state.lastClaimDay + 1) {
+        val newStreak = if (state.lastClaimDay >= 0 &&
+            (today == state.lastClaimDay + 1 || status.streakFreezeWillBeUsed)) {
             state.streak + 1
         } else {
             1
@@ -126,9 +136,26 @@ object TanksDailyRewards {
             streak = newStreak,
             bestStreak = maxOf(state.bestStreak, newStreak),
             claimedTotal = state.claimedTotal + 1,
-            pendingBonusLives = state.pendingBonusLives + status.reward.bonusLives
+            pendingBonusLives = state.pendingBonusLives + status.reward.bonusLives,
+            streakFreezeStored = state.streakFreezeStored && !status.streakFreezeWillBeUsed
         )
     }
+
+    fun streakFreezeCooldownRemaining(state: TanksDailyState, nowMillis: Long): Long {
+        val earnedAt = state.lastStreakFreezeEarnedAtMillis ?: return 0
+        if (nowMillis < earnedAt) return StreakFreezeCooldownMillis
+        return (StreakFreezeCooldownMillis - (nowMillis - earnedAt)).coerceAtLeast(0)
+    }
+
+    fun canEarnStreakFreeze(state: TanksDailyState, nowMillis: Long): Boolean =
+        !state.streakFreezeStored && epochDay(nowMillis) >= state.lastSeenDay &&
+            streakFreezeCooldownRemaining(state, nowMillis) == 0L
+
+    fun earnStreakFreeze(state: TanksDailyState, nowMillis: Long): TanksDailyState =
+        if (canEarnStreakFreeze(state, nowMillis)) {
+            state.copy(streakFreezeStored = true, lastStreakFreezeEarnedAtMillis = nowMillis,
+                lastSeenDay = maxOf(state.lastSeenDay, epochDay(nowMillis)))
+        } else state
 
     /** Records that this day was seen, so a later rollback is detectable. */
     fun touch(state: TanksDailyState, today: Int): TanksDailyState =

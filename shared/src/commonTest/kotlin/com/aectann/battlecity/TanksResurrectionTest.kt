@@ -78,7 +78,7 @@ class TanksResurrectionTest {
         val ads = DeferredAds()
         game.resurrectWithAd(ads)
         runCurrent()
-        ads.result.complete(ResurrectionAdResult.Earned)
+        ads.result.complete(RewardedAdResult.Earned)
         runCurrent()
         assertEquals(TanksPhase.Paused, game.session.value.phase)
         assertEquals(1, game.render.value!!.lives)
@@ -101,7 +101,7 @@ class TanksResurrectionTest {
         game.resurrectWithAd(ads)
         runCurrent()
         assertEquals(1, ads.showCount)
-        ads.result.complete(ResurrectionAdResult.Earned)
+        ads.result.complete(RewardedAdResult.Earned)
         runCurrent()
         game.resurrectWithAd(ads)
         runCurrent()
@@ -111,7 +111,7 @@ class TanksResurrectionTest {
 
     @Test
     fun closingWithoutRewardOrFailingNeverResurrects() {
-        listOf(ResurrectionAdResult.NotEarned, ResurrectionAdResult.Unavailable, ResurrectionAdResult.Failed).forEach { result ->
+        listOf(RewardedAdResult.NotEarned, RewardedAdResult.Unavailable, RewardedAdResult.Failed).forEach { result ->
             withGame { game ->
                 lose(game)
                 val ads = DeferredAds()
@@ -138,7 +138,7 @@ class TanksResurrectionTest {
         runCurrent()
         game.selectStage(1)
         runCurrent()
-        ads.result.complete(ResurrectionAdResult.Earned)
+        ads.result.complete(RewardedAdResult.Earned)
         runCurrent()
         assertEquals(TanksPhase.Ready, game.session.value.phase)
         assertEquals(3, game.render.value!!.lives)
@@ -189,10 +189,10 @@ class TanksResurrectionTest {
 
     private class DeferredAds : TanksAds {
         override val supportsResurrection = true
-        override val state = MutableStateFlow(TanksAdsState(resurrection = ResurrectionAdAvailability.Ready))
-        val result = CompletableDeferred<ResurrectionAdResult>()
+        override val state = MutableStateFlow(TanksAdsState(resurrection = RewardedAdAvailability.Ready))
+        val result = CompletableDeferred<RewardedAdResult>()
         var showCount = 0
-        override suspend fun showResurrection(): ResurrectionAdResult {
+        override suspend fun showResurrection(): RewardedAdResult {
             showCount++
             return result.await()
         }

@@ -1,6 +1,14 @@
 package com.aectann.battlecity
 
 import battlecity.shared.generated.resources.Res
+import battlecity.shared.generated.resources.resurrection_cooldown
+import battlecity.shared.generated.resources.daily_freeze_offer
+import battlecity.shared.generated.resources.daily_freeze_watch
+import battlecity.shared.generated.resources.daily_freeze_stored
+import battlecity.shared.generated.resources.daily_freeze_protect_claim
+import battlecity.shared.generated.resources.daily_freeze_cooldown
+import battlecity.shared.generated.resources.daily_freeze_unavailable
+import battlecity.shared.generated.resources.daily_freeze_not_earned
 import battlecity.shared.generated.resources.ads_age_title
 import battlecity.shared.generated.resources.ads_age_prompt
 import battlecity.shared.generated.resources.ads_age_label
@@ -139,6 +147,14 @@ import org.jetbrains.compose.resources.StringResource
  * instead of carrying thirty imports of its own.
  */
 object TanksStrings {
+    val resurrectionCooldown = Res.string.resurrection_cooldown
+    val dailyFreezeOffer = Res.string.daily_freeze_offer
+    val dailyFreezeWatch = Res.string.daily_freeze_watch
+    val dailyFreezeStored = Res.string.daily_freeze_stored
+    val dailyFreezeProtectClaim = Res.string.daily_freeze_protect_claim
+    val dailyFreezeCooldown = Res.string.daily_freeze_cooldown
+    val dailyFreezeUnavailable = Res.string.daily_freeze_unavailable
+    val dailyFreezeNotEarned = Res.string.daily_freeze_not_earned
     val adsAgeTitle = Res.string.ads_age_title
     val adsAgePrompt = Res.string.ads_age_prompt
     val adsAgeLabel = Res.string.ads_age_label

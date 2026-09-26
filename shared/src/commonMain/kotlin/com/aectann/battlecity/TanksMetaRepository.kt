@@ -42,6 +42,19 @@ class TanksMetaRepository(
 
     fun dailyStatus(): TanksDailyStatus = TanksDailyRewards.status(cached.daily, today())
 
+    fun canEarnStreakFreeze(): Boolean = TanksDailyRewards.canEarnStreakFreeze(cached.daily, clock())
+
+    fun streakFreezeCooldownRemaining(): Long =
+        TanksDailyRewards.streakFreezeCooldownRemaining(cached.daily, clock())
+
+    fun earnStreakFreeze(): Boolean {
+        val previous = cached.daily
+        val updated = TanksDailyRewards.earnStreakFreeze(previous, clock())
+        if (updated == previous) return false
+        mutate { it.copy(daily = updated) }
+        return true
+    }
+
     /** Claims today's reward. Returns the save afterwards; unchanged when nothing was due. */
     fun claimDaily(): TanksMetaSave = mutate { current ->
         val status = TanksDailyRewards.status(current.daily, today())

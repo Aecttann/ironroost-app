@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">0 से 130 तक एक पूर्ण संख्या दर्ज करें।</string>
     <string name="ads_age_continue">जारी रखें</string>
     <string name="ads_age_skip">छोड़ें</string>
+    <string name="resurrection_cooldown">पुनर्जीवन विज्ञापन के लिए फिर %1$d सेकंड में कोशिश करें।</string>
+    <string name="daily_freeze_offer">हर 48 घंटे में विज्ञापन देखकर एक स्ट्रीक सुरक्षा पाएँ। इसे पहले से बचाएँ या आज का पुरस्कार लेने से पहले एक छूटे हुए दिन की भरपाई करें। कई छूटे हुए दिन सुरक्षित नहीं होते।</string>
+    <string name="daily_freeze_watch">विज्ञापन देखें · +1 स्ट्रीक सुरक्षा</string>
+    <string name="daily_freeze_stored">1 स्ट्रीक सुरक्षा बची है। यह एक छूटे हुए दिन से आपकी स्ट्रीक बचाती है।</string>
+    <string name="daily_freeze_protect_claim">आज का पुरस्कार लेने पर एक सुरक्षा खर्च होगी और आपकी स्ट्रीक बनी रहेगी।</string>
+    <string name="daily_freeze_cooldown">सुरक्षा विज्ञापन के लिए लगभग %1$d घंटे बाद फिर कोशिश करें।</string>
+    <string name="daily_freeze_unavailable">अभी विज्ञापन उपलब्ध नहीं है।</string>
+    <string name="daily_freeze_not_earned">स्ट्रीक सुरक्षा नहीं मिली: विज्ञापन का पुरस्कार पूरा नहीं हुआ।</string>
 </resources>

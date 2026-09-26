@@ -84,8 +84,8 @@ import com.aectann.battlecity.TanksStrings
 import com.aectann.battlecity.TanksAds
 import com.aectann.battlecity.NoopTanksAds
 import androidx.compose.ui.text.style.TextAlign
-import com.aectann.battlecity.ResurrectionAdAvailability
-import com.aectann.battlecity.ResurrectionAdResult
+import com.aectann.battlecity.RewardedAdAvailability
+import com.aectann.battlecity.RewardedAdResult
 import com.aectann.battlecity.TanksViewModel
 import com.aectann.battlecity.engine.BattleCityDirection
 import com.aectann.battlecity.engine.BattleCityEffectKind
@@ -452,6 +452,7 @@ fun TanksGameScreen(
                 canResurrect = session.canResurrect,
                 isCoop = session.isCoop,
                 adAvailability = adsState.resurrection,
+                adCooldownSeconds = adsState.resurrectionCooldownSeconds,
                 resurrectionInProgress = session.resurrectionInProgress,
                 resurrectionResult = session.resurrectionResult,
                 onResurrect = { viewModel.resurrectWithAd(ads) },
@@ -1263,9 +1264,10 @@ private fun TanksGameOverOverlay(
     endlessWave: Int?,
     canResurrect: Boolean,
     isCoop: Boolean,
-    adAvailability: ResurrectionAdAvailability,
+    adAvailability: RewardedAdAvailability,
+    adCooldownSeconds: Int,
     resurrectionInProgress: Boolean,
-    resurrectionResult: ResurrectionAdResult?,
+    resurrectionResult: RewardedAdResult?,
     onResurrect: () -> Unit,
     onRetry: () -> Unit,
     onExitToMenu: () -> Unit
@@ -1306,21 +1308,23 @@ private fun TanksGameOverOverlay(
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = onResurrect,
-                enabled = adAvailability == ResurrectionAdAvailability.Ready && !resurrectionInProgress,
+                enabled = adAvailability == RewardedAdAvailability.Ready && !resurrectionInProgress,
                 modifier = Modifier.widthIn(min = 240.dp)
             ) {
                 Text(stringResource(if (resurrectionInProgress) TanksStrings.resurrectionWatching else TanksStrings.resurrectionWatch))
             }
             val message = when {
                 resurrectionInProgress -> null
-                resurrectionResult == ResurrectionAdResult.NotEarned -> TanksStrings.resurrectionNotEarned
-                resurrectionResult == ResurrectionAdResult.Failed -> TanksStrings.resurrectionFailed
-                adAvailability == ResurrectionAdAvailability.Loading -> TanksStrings.resurrectionLoading
-                adAvailability == ResurrectionAdAvailability.Unavailable -> TanksStrings.resurrectionUnavailable
+                adAvailability == RewardedAdAvailability.CoolingDown -> TanksStrings.resurrectionCooldown
+                resurrectionResult == RewardedAdResult.NotEarned -> TanksStrings.resurrectionNotEarned
+                resurrectionResult == RewardedAdResult.Failed -> TanksStrings.resurrectionFailed
+                adAvailability == RewardedAdAvailability.Loading -> TanksStrings.resurrectionLoading
+                adAvailability == RewardedAdAvailability.Unavailable -> TanksStrings.resurrectionUnavailable
                 else -> null
             }
             if (message != null) {
-                Text(stringResource(message), color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                val text = if (message == TanksStrings.resurrectionCooldown) stringResource(message, adCooldownSeconds) else stringResource(message)
+                Text(text, color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
             }
             Spacer(Modifier.height(16.dp))
         }

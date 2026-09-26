@@ -354,6 +354,7 @@ private fun SeatOption(
 internal fun SubScreenScaffold(
     title: String,
     onBack: () -> Unit,
+    backEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     Column(
@@ -368,7 +369,7 @@ internal fun SubScreenScaffold(
         Spacer(modifier = Modifier.height(24.dp))
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) { content() }
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = onBack, modifier = Modifier.widthIn(min = 200.dp)) {
+        OutlinedButton(onClick = onBack, enabled = backEnabled, modifier = Modifier.widthIn(min = 200.dp)) {
             Text(stringResource(TanksStrings.commonBack))
         }
     }

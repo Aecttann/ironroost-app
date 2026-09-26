@@ -42,6 +42,9 @@ import androidx.compose.ui.unit.sp
 import com.aectann.battlecity.TanksAssets
 import com.aectann.battlecity.TanksMetaUi
 import com.aectann.battlecity.TanksStrings
+import com.aectann.battlecity.TanksAdsState
+import com.aectann.battlecity.RewardedAdAvailability
+import com.aectann.battlecity.RewardedAdResult
 import com.aectann.battlecity.engine.TanksCard
 import com.aectann.battlecity.engine.TanksCardGroup
 import com.aectann.battlecity.engine.TanksCollection
@@ -58,9 +61,14 @@ import kotlin.math.roundToInt
 fun DailyRewardScreen(
     meta: TanksMetaUi,
     onClaim: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    supportsStreakFreeze: Boolean = false,
+    adState: TanksAdsState = TanksAdsState(),
+    freezeInProgress: Boolean = false,
+    freezeResult: RewardedAdResult? = null,
+    onFreeze: () -> Unit = {}
 ) {
-    SubScreenScaffold(title = stringResource(TanksStrings.dailyTitle), onBack = onBack) {
+    SubScreenScaffold(title = stringResource(TanksStrings.dailyTitle), onBack = onBack, backEnabled = !freezeInProgress) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -113,6 +121,7 @@ fun DailyRewardScreen(
             when (daily.availability) {
                 TanksDailyAvailability.Claimable -> Button(
                     onClick = onClaim,
+                    enabled = !freezeInProgress,
                     modifier = Modifier.widthIn(min = 220.dp)
                 ) { Text(stringResource(TanksStrings.dailyClaim)) }
 
@@ -139,6 +148,35 @@ fun DailyRewardScreen(
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
+            }
+            if (supportsStreakFreeze) {
+                Spacer(Modifier.height(24.dp))
+                if (daily.streakFreezeStored) {
+                    Text(stringResource(if (daily.streakFreezeWillBeUsed) TanksStrings.dailyFreezeProtectClaim
+                        else TanksStrings.dailyFreezeStored), color = PlayerGreen, fontSize = 14.sp,
+                        textAlign = TextAlign.Center)
+                } else {
+                    Text(stringResource(TanksStrings.dailyFreezeOffer), color = MutedText, fontSize = 13.sp,
+                        textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onFreeze, enabled = meta.canEarnStreakFreeze &&
+                        adState.streakFreeze == RewardedAdAvailability.Ready && !freezeInProgress) {
+                        Text(stringResource(if (freezeInProgress) TanksStrings.resurrectionWatching else TanksStrings.dailyFreezeWatch))
+                    }
+                    val cooldownHours = maxOf(meta.streakFreezeCooldownHours, adState.streakFreezeCooldownHours)
+                    when {
+                        freezeInProgress -> Unit
+                        cooldownHours > 0 -> Text(stringResource(TanksStrings.dailyFreezeCooldown, cooldownHours),
+                            color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                        adState.streakFreeze == RewardedAdAvailability.Loading -> Text(stringResource(TanksStrings.resurrectionLoading), color = MutedText)
+                        adState.streakFreeze == RewardedAdAvailability.Unavailable -> Text(stringResource(TanksStrings.dailyFreezeUnavailable), color = MutedText,
+                            fontSize = 12.sp, textAlign = TextAlign.Center)
+                    }
+                    if (!freezeInProgress && (freezeResult == RewardedAdResult.NotEarned || freezeResult == RewardedAdResult.Failed)) {
+                        Text(stringResource(if (freezeResult == RewardedAdResult.NotEarned) TanksStrings.dailyFreezeNotEarned
+                            else TanksStrings.resurrectionFailed), color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    }
+                }
             }
         }
     }

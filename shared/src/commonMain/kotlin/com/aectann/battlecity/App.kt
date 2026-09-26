@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -102,6 +103,16 @@ fun App(
             if (adsState.fullScreenShowing || adsState.privacyOptionsBusy) viewModel.pause()
         }
         var destination by rememberSaveable { mutableStateOf(Destination.Menu) }
+        LaunchedEffect(ads, destination, meta.canEarnStreakFreeze) {
+            ads.prepareStreakFreeze(destination == Destination.Daily && meta.canEarnStreakFreeze)
+        }
+        LaunchedEffect(destination) {
+            while (destination == Destination.Daily) {
+                viewModel.refreshDailyStatus()
+                delay(30_000)
+            }
+        }
+        DisposableEffect(ads) { onDispose { ads.prepareStreakFreeze(false) } }
         var assets by remember { mutableStateOf<TanksAssets?>(null) }
         // The seat count belongs to the menu, not to the run: it has to survive between runs so
         // a pair playing together does not re-pick two players every time they lose.
@@ -185,7 +196,12 @@ fun App(
                     Destination.Daily -> DailyRewardScreen(
                         meta = meta,
                         onClaim = viewModel::claimDaily,
-                        onBack = { destination = Destination.Menu }
+                        onBack = { if (!session.streakFreezeInProgress) destination = Destination.Menu },
+                        supportsStreakFreeze = ads.supportsStreakFreeze,
+                        adState = adsState,
+                        freezeInProgress = session.streakFreezeInProgress,
+                        freezeResult = session.streakFreezeResult,
+                        onFreeze = { viewModel.earnStreakFreezeWithAd(ads) }
                     )
 
                     Destination.Collection -> CollectionScreen(
@@ -221,7 +237,7 @@ fun App(
         }
 
         PlatformBackHandler(enabled = destination != Destination.Menu && destination != Destination.Game) {
-            destination = Destination.Menu
+            if (!session.streakFreezeInProgress) destination = Destination.Menu
         }
     }
 }

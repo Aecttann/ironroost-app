@@ -13,10 +13,22 @@ The Android host owns Google Mobile Ads and UMP. The engine and shared UI depend
 IDs are selected by build type in `androidApp/build.gradle.kts`. Debug uses Google's test ads,
 including the test application ID. Release uses the supplied production IDs.
 
+`DailyStreakFreeze` uses release unit `ca-app-pub-4014372145678923/7850857780` and Google's
+rewarded-interstitial test unit `ca-app-pub-3940256099942544/5354046379` in debug.
+
 SDK versions are pinned in `gradle/libs.versions.toml`. The SDK supporting
 `RewardedInterstitialAd` is used for the supplied rewarded interstitial unit.
 
-The existing AdMob frequency cap is enforced by AdMob; no second client-side cap is added.
+The latest account configuration has no app-wide cap. Each rewarded unit has its own cap:
+ResurrectionAd once per five minutes and DailyStreakFreeze once per two days. AdMob enforces
+these server-side. Independent local caps in `TanksRewardedPlacement` supplement them and
+prevent repeated presentation of preloaded ads. Local timestamps are recorded only by the
+SDK's fullscreen-show callback; a failed load/show does not consume a display allowance.
+Closing a displayed ad early consumes the allowance even if no reward is earned. A displayed
+freeze ad therefore cannot be retried for 48 hours after an early close, matching its unit cap.
+The timestamps persist through Activity/process recreation in the existing preference store.
+Google documents possible propagation/server delays, so local presentation checks remain
+useful: [AdMob frequency caps](https://support.google.com/admob/answer/6244508).
 No fill, consent failure, expired ads, and presentation errors leave retry/menu actions available.
 Rewarded ads are preloaded, retried with bounded exponential backoff, and refreshed before the
 one-hour expiration. Loading stops while the Activity is not resumed and recovers on resume.
@@ -85,6 +97,32 @@ Before production verification in the AdMob/Play accounts:
 5. Test production consent messages with a registered UMP test device. Do not test live ad
    impressions/clicks; use a registered AdMob test device if verifying release configuration.
 
+## Daily streak freeze
+
+- The Daily screen explains the reward and offers an optional ad action. The ad is preloaded
+  only while this screen is open and the player can earn a freeze. Navigation and daily claims
+  are disabled during presentation; a load/show error leaves ordinary daily claims available.
+- A successful reward callback saves exactly one freeze. At most one freeze can be stored.
+  Another cannot be earned until 48 hours after the previous earned reward, even if that
+  freeze has already been consumed. This reward rule is separate from the display cap.
+- A freeze may be saved in advance or earned after missing one day, before the next daily
+  reward is claimed. The next claim automatically consumes it if the last claim was two UTC
+  days ago. The streak and seven-claim cycle continue; the missed day earns no lives/card
+  and does not advance the cycle. The ordinary claim is still awarded exactly once.
+- Consecutive daily claims do not consume the freeze. Two or more missed days still reset
+  the streak; the unused freeze remains available to protect a later streak. Once a reset
+  claim is taken, a new freeze cannot reconstruct the previous streak.
+- Saved freeze inventory, earning timestamps, and consumption are part of `TanksDailyState`
+  in the existing meta save. Older saves default to no freeze. Clock rollback cannot shorten
+  a running cooldown or reopen a claim. The existing clock is device-local; these controls
+  are not a replacement for an authoritative backend or cross-device account limits.
+- The UI shows saved protection, protection of today's claim, ad loading/failure, and rounded
+  remaining cooldown hours. Daily status refreshes every 30 seconds while the page is open;
+  eligibility is checked again when the reward/claim is committed.
+- Display intervals are configured in `shared/.../TanksAdFrequencyStore.kt`; the earning
+  interval is `TanksDailyRewards.StreakFreezeCooldownMillis` in `engine/.../Meta.kt`. Keep
+  AdMob unit settings aligned when changing either local display interval.
+
 ## Validation checklist on an existing Android device
 
 No emulator is required. Automated tests cover the deterministic engine and ViewModel paths.
@@ -107,6 +145,13 @@ The following checks require a device and are not replaced by compilation:
   and both groups retain the same game actions. Verify Families ad-format behavior, including
   the required dismiss controls on ads shown to children, with the actual account inventory.
 - Verify leaderboard/statistics submission once after declining or dying again after revival.
+- Earn a freeze in advance, keep it through a consecutive claim, miss one day, and claim:
+  exactly one freeze is consumed and only today's reward advances the cycle.
+- Miss one day without a freeze, earn one before claiming, and confirm the streak is preserved.
+  With two missed days, confirm that the streak resets and the freeze is retained.
+- Close a freeze ad without earning, fail to load/show, double tap, rotate, and restart the
+  process. Verify separate five-minute/48-hour display caps, the saved inventory, and the
+  48-hour reward cooldown after consuming the freeze. Ordinary daily claims must remain usable.
 
 ## Source map
 
@@ -118,8 +163,9 @@ The following checks require a device and are not replaced by compilation:
   `androidApp/src/main/kotlin/com/aectann/battlecity/ads/MenuBanner.kt`.
 - Shared platform contract and UI wiring:
   `shared/src/commonMain/kotlin/com/aectann/battlecity/TanksAds.kt`,
+  `shared/src/commonMain/kotlin/com/aectann/battlecity/TanksAdFrequencyStore.kt`,
   `shared/src/commonMain/kotlin/com/aectann/battlecity/App.kt`, and
-  `shared/src/commonMain/kotlin/com/aectann/battlecity/ui/{AdsAgeScreen,MenuScreen,SettingsScreen,TanksGameScreen}.kt`.
+  `shared/src/commonMain/kotlin/com/aectann/battlecity/ui/{AdsAgeScreen,MenuScreen,MetaScreens,SettingsScreen,TanksGameScreen}.kt`.
 - Resurrection and pending-loss persistence:
   `engine/src/commonMain/kotlin/com/aectann/battlecity/engine/{BattleCityEngine,Meta}.kt`,
   `shared/src/commonMain/kotlin/com/aectann/battlecity/{TanksViewModel,TanksMetaRepository}.kt`.
@@ -128,20 +174,29 @@ The following checks require a device and are not replaced by compilation:
 - Test dependency: `shared/build.gradle.kts`. New tests:
   `engine/src/commonTest/kotlin/com/aectann/battlecity/engine/BattleCityResurrectionTest.kt`,
   `shared/src/commonTest/kotlin/com/aectann/battlecity/{TanksResurrectionTest,TanksAdAudienceTest}.kt`.
+  Freeze coverage: `engine/src/commonTest/kotlin/com/aectann/battlecity/engine/TanksStreakFreezeTest.kt`
+  and `shared/src/commonTest/kotlin/com/aectann/battlecity/{TanksStreakFreezeViewModelTest,TanksAdFrequencyStoreTest}.kt`.
 
 ## Automated validation
 
 On 2026-09-27, the following Gradle tasks completed successfully on Windows:
 
 ```powershell
-.\gradlew.bat :androidApp:assembleDebug :androidApp:assembleRelease :engine:testAndroidHostTest :shared:testAndroidHostTest :webApp:compileKotlinWasmJs --max-workers=2 --console=plain --continue
+.\gradlew.bat :engine:testAndroidHostTest :shared:testAndroidHostTest :androidApp:assembleDebug :androidApp:assembleRelease :webApp:compileKotlinWasmJs :androidApp:lintDebug --max-workers=1 --console=plain --continue
 ```
 
-- Engine: 73 tests, no failures; shared: 39 tests, no failures.
-- The new suites cover four engine resurrection cases, seven ViewModel/persistence cases,
-  and two audience-classification cases.
+- Engine: 80 tests, no failures; shared: 46 tests, no failures.
+- Ad-related suites cover four engine resurrection cases, seven resurrection ViewModel/
+  persistence cases, two audience-classification cases, seven engine freeze cases, five
+  freeze ViewModel/persistence cases, and two independent display-cap cases.
 - Release R8/resource shrinking and `lintVitalRelease` completed successfully.
-- Merged manifests and generated BuildConfig values match the test/production ID table.
+- Both APKs and Wasm compiled after the final localized cooldown text change. Full
+  `lintDebug`, including engine/shared host-test analysis, completed successfully.
+- Merged manifests and generated BuildConfig values match the test/production IDs above,
+  including the new DailyStreakFreeze unit.
+- Full lint reports 25 project advisories for the existing target SDK, available dependency/
+  toolchain updates, and launcher icon shape. It reports no diagnostics in the AdMob,
+  audience-screen, resurrection, or freeze implementation files. No checks were disabled.
 - Release signing was not configured in this environment; the release APK is unsigned.
 
 These checks do not verify SDK presentation, production consent configuration, or device

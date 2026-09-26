@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">0 ile 130 arasında bir tam sayı gir.</string>
     <string name="ads_age_continue">Devam</string>
     <string name="ads_age_skip">Atla</string>
+    <string name="resurrection_cooldown">Dirilme reklamını %1$d sn. sonra tekrar deneyebilirsin.</string>
+    <string name="daily_freeze_offer">Her 48 saatte bir reklamla bir seri koruması kazanabilirsin. Önceden sakla veya bugünün ödülünü almadan önce kaçırdığın tek bir günü koru. Birden fazla kaçırılan gün korunmaz.</string>
+    <string name="daily_freeze_watch">Reklam izle · +1 seri koruması</string>
+    <string name="daily_freeze_stored">1 seri koruması saklandı. Kaçırılan tek bir günde serini korur.</string>
+    <string name="daily_freeze_protect_claim">Bugünün ödülü bir koruma harcayarak serini devam ettirir.</string>
+    <string name="daily_freeze_cooldown">Koruma reklamını yaklaşık %1$d sa. sonra tekrar deneyebilirsin.</string>
+    <string name="daily_freeze_unavailable">Şu anda reklam kullanılamıyor.</string>
+    <string name="daily_freeze_not_earned">Seri koruması kazanılmadı: Reklam ödülü tamamlanmadı.</string>
 </resources>

@@ -130,4 +130,12 @@
     <string name="ads_age_invalid">请输入0到130之间的整数。</string>
     <string name="ads_age_continue">继续</string>
     <string name="ads_age_skip">跳过</string>
+    <string name="resurrection_cooldown">可在 %1$d 秒后重试复活广告。</string>
+    <string name="daily_freeze_offer">每48小时可通过广告获得1次连续奖励保护。可提前储存，也可在领取今日奖励前保护已经错过的一天。无法保护连续错过的多天。</string>
+    <string name="daily_freeze_watch">观看广告 · 保护 +1</string>
+    <string name="daily_freeze_stored">已储存1次保护，可在错过一天时保住连续记录。</string>
+    <string name="daily_freeze_protect_claim">领取今日奖励将消耗1次保护并保留连续记录。</string>
+    <string name="daily_freeze_cooldown">可在约 %1$d 小时后重试保护广告。</string>
+    <string name="daily_freeze_unavailable">目前无法播放广告。</string>
+    <string name="daily_freeze_not_earned">未获得保护：广告奖励条件尚未完成。</string>
 </resources>

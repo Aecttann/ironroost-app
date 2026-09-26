@@ -27,7 +27,7 @@ actual fun rememberTanksPlatform(): TanksPlatform {
 
 private class AndroidTanksPlatform(private val context: Context) : TanksPlatform {
 
-    override val keyValueStore: TanksKeyValueStore = SharedPreferencesStore(context.applicationContext)
+    override val keyValueStore: TanksKeyValueStore = createAndroidTanksKeyValueStore(context)
     override val progressStore: TanksProgressStore = StoredTanksProgress(keyValueStore)
 
     override fun nowEpochMillis(): Long = System.currentTimeMillis()
@@ -80,6 +80,9 @@ private class AndroidTanksPlatform(private val context: Context) : TanksPlatform
         }
     }
 }
+
+fun createAndroidTanksKeyValueStore(context: Context): TanksKeyValueStore =
+    SharedPreferencesStore(context.applicationContext)
 
 private class SharedPreferencesStore(context: Context) : TanksKeyValueStore {
     private val preferences: SharedPreferences =
