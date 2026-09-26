@@ -7,6 +7,9 @@ import com.aectann.battlecity.engine.BattleCityMaxDifficulty
 import com.aectann.battlecity.engine.BattleCityMaxStage
 import com.aectann.battlecity.engine.BattleCitySoundEvent
 import com.aectann.battlecity.engine.BattleCityStageInfo
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -84,10 +87,12 @@ object TanksResources {
     @OptIn(ExperimentalResourceApi::class)
     suspend fun loadSoundBank(): Map<TanksClip, ByteArray> = soundMutex.withLock {
         soundCache?.let { return@withLock it }
-        val clips = mutableMapOf<TanksClip, ByteArray>()
-        TanksClip.entries.forEach { clip ->
-            runCatching { Res.readBytes(clip.path) }.onSuccess { clips[clip] = it }
+        // Requested together for the same reason as the sprites: on the web each is a round trip.
+        val clips = coroutineScope {
+            TanksClip.entries.map { clip ->
+                async { runCatching { Res.readBytes(clip.path) }.getOrNull()?.let { clip to it } }
+            }.awaitAll()
         }
-        clips.toMap().also { soundCache = it }
+        clips.filterNotNull().toMap().also { soundCache = it }
     }
 }

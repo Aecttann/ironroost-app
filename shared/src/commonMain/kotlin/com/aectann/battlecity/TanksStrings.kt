@@ -1,6 +1,22 @@
 package com.aectann.battlecity
 
 import battlecity.shared.generated.resources.Res
+import battlecity.shared.generated.resources.ads_age_title
+import battlecity.shared.generated.resources.ads_age_prompt
+import battlecity.shared.generated.resources.ads_age_label
+import battlecity.shared.generated.resources.ads_age_invalid
+import battlecity.shared.generated.resources.ads_age_continue
+import battlecity.shared.generated.resources.ads_age_skip
+import battlecity.shared.generated.resources.resurrection_offer
+import battlecity.shared.generated.resources.resurrection_offer_coop
+import battlecity.shared.generated.resources.resurrection_watch
+import battlecity.shared.generated.resources.resurrection_watching
+import battlecity.shared.generated.resources.resurrection_loading
+import battlecity.shared.generated.resources.resurrection_unavailable
+import battlecity.shared.generated.resources.resurrection_not_earned
+import battlecity.shared.generated.resources.resurrection_failed
+import battlecity.shared.generated.resources.ads_privacy_options
+import battlecity.shared.generated.resources.ads_privacy_failed
 import battlecity.shared.generated.resources.endless_over_title
 import battlecity.shared.generated.resources.endless_over_wave
 import battlecity.shared.generated.resources.leaderboard_portal_note
@@ -86,6 +102,10 @@ import battlecity.shared.generated.resources.settings_reset_question
 import battlecity.shared.generated.resources.settings_title
 import battlecity.shared.generated.resources.menu_daily
 import battlecity.shared.generated.resources.menu_collection
+import battlecity.shared.generated.resources.menu_coop_needs_keyboard
+import battlecity.shared.generated.resources.pause_exit_confirm
+import battlecity.shared.generated.resources.pause_exit_question
+import battlecity.shared.generated.resources.pause_exit_title
 import battlecity.shared.generated.resources.menu_leaderboard
 import battlecity.shared.generated.resources.daily_title
 import battlecity.shared.generated.resources.daily_claim
@@ -119,6 +139,22 @@ import org.jetbrains.compose.resources.StringResource
  * instead of carrying thirty imports of its own.
  */
 object TanksStrings {
+    val adsAgeTitle = Res.string.ads_age_title
+    val adsAgePrompt = Res.string.ads_age_prompt
+    val adsAgeLabel = Res.string.ads_age_label
+    val adsAgeInvalid = Res.string.ads_age_invalid
+    val adsAgeContinue = Res.string.ads_age_continue
+    val adsAgeSkip = Res.string.ads_age_skip
+    val resurrectionOffer = Res.string.resurrection_offer
+    val resurrectionOfferCoop = Res.string.resurrection_offer_coop
+    val resurrectionWatch = Res.string.resurrection_watch
+    val resurrectionWatching = Res.string.resurrection_watching
+    val resurrectionLoading = Res.string.resurrection_loading
+    val resurrectionUnavailable = Res.string.resurrection_unavailable
+    val resurrectionNotEarned = Res.string.resurrection_not_earned
+    val resurrectionFailed = Res.string.resurrection_failed
+    val adsPrivacyOptions = Res.string.ads_privacy_options
+    val adsPrivacyFailed = Res.string.ads_privacy_failed
     val appName: StringResource = Res.string.app_name
     val loading: StringResource = Res.string.tanks_loading
     val stage: StringResource = Res.string.tanks_stage
@@ -202,6 +238,10 @@ object TanksStrings {
     // Co-op and endless.
     val menuPlayersOne: StringResource = Res.string.menu_players_one
     val menuPlayersTwo: StringResource = Res.string.menu_players_two
+    val menuCoopNeedsKeyboard: StringResource = Res.string.menu_coop_needs_keyboard
+    val pauseExitTitle: StringResource = Res.string.pause_exit_title
+    val pauseExitQuestion: StringResource = Res.string.pause_exit_question
+    val pauseExitConfirm: StringResource = Res.string.pause_exit_confirm
     val menuEndless: StringResource = Res.string.menu_endless
     val menuEndlessBest: StringResource = Res.string.menu_endless_best
     val wave: StringResource = Res.string.tanks_wave

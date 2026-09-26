@@ -320,6 +320,15 @@ object TanksNickname {
 
 /** Everything the meta features persist, in one serialisable blob. */
 @Serializable
+data class TanksPendingRunLoss(
+    val kills: Map<String, Int>,
+    val powerUps: Map<String, Int>,
+    val playerLevel: Int,
+    val entry: TanksScoreEntry,
+    val endless: Boolean
+)
+
+@Serializable
 data class TanksMetaSave(
     val daily: TanksDailyState = TanksDailyState(),
     val stats: TanksMetaStats = TanksMetaStats(),
@@ -331,7 +340,8 @@ data class TanksMetaSave(
      * endless score is not — and it is the endless number that goes to the portal board.
      */
     val endlessLeaderboard: TanksLeaderboard = TanksLeaderboard(),
-    val nickname: String = TanksNickname.Fallback
+    val nickname: String = TanksNickname.Fallback,
+    val pendingRunLoss: TanksPendingRunLoss? = null
 )
 
 object TanksMetaCodec {

@@ -18,10 +18,16 @@
             enabled: true,
             engineRequested: false,
             sources: new Map(),
+            encoded: new Map(),
+            buffers: new Map(),
             voices: new Set(),
-            engine: null
+            engine: null,
+            context: null,
+            effects: null
         }
     };
+
+    const EffectsVolume = 0.7;
 
     const sdk = () => window.CrazyGames?.SDK;
 
@@ -63,7 +69,7 @@
         if (state.audioMuted === muted) return;
         state.audioMuted = muted;
         reconcileAudio();
-        window.dispatchEvent(new CustomEvent("steel-eagle-audio-mute", { detail: muted }));
+        window.dispatchEvent(new CustomEvent("ironroost-audio-mute", { detail: muted }));
     }
 
     function reconcileGameplay() {
@@ -83,11 +89,73 @@
     function reconcileAudio() {
         const engine = state.audio.engine;
         if (!engine) return;
-        if (state.audio.engineRequested && audioCanPlay()) {
+        // The game asks every frame while a tank moves. Only a change reaches the element: a
+        // play() on one already playing still makes a promise and queues a task, sixty a second.
+        const wanted = state.audio.engineRequested && audioCanPlay();
+        if (wanted && engine.paused) {
             engine.play().catch(() => {});
-        } else {
+        } else if (!wanted && !engine.paused) {
             engine.pause();
         }
+    }
+
+    // Effects play through Web Audio where the browser has it. A fresh <audio> element per shot
+    // builds a media player and decodes a data URL for every shell, which a desktop shrugs off
+    // and an iPad does not; a decoded buffer costs one node per play. The element path stays as
+    // the fallback, and covers the first sounds while the buffers are still decoding.
+    //
+    // The context is made on the first touch, click or key rather than at load: browsers hold a
+    // context created without one suspended, and Chrome logs a warning for it.
+    function unlockAudio() {
+        if (!state.audio.context) {
+            const Context = window.AudioContext || window.webkitAudioContext;
+            if (!Context) return;
+            try {
+                const context = new Context();
+                const effects = context.createGain();
+                effects.gain.value = EffectsVolume;
+                effects.connect(context.destination);
+                state.audio.context = context;
+                state.audio.effects = effects;
+            } catch (_) {
+                return;
+            }
+            state.audio.encoded.forEach((base64, name) => decodeClip(name, base64));
+        }
+        if (state.audio.context.state !== "running") {
+            // Older WebKit's resume() returns nothing rather than a promise.
+            try { Promise.resolve(state.audio.context.resume()).catch(() => {}); } catch (_) {}
+        }
+    }
+
+    ["pointerdown", "pointerup", "touchend", "keydown"].forEach(type =>
+        window.addEventListener(type, unlockAudio, { capture: true, passive: true })
+    );
+
+    function decodeClip(name, base64) {
+        const context = state.audio.context;
+        if (!context) return;
+        try {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            context.decodeAudioData(bytes.buffer).then(
+                buffer => state.audio.buffers.set(name, buffer),
+                () => { /* The element fallback still plays this clip. */ }
+            );
+        } catch (_) {
+            // Same: an undecodable clip keeps playing through the element.
+        }
+    }
+
+    function silenceVoices() {
+        state.audio.voices.forEach(voice => {
+            try {
+                if (voice.stop) voice.stop();
+                else voice.pause();
+            } catch (_) { /* Already finished. */ }
+        });
+        state.audio.voices.clear();
     }
 
     // ------------------------------------------------------------------- saved data
@@ -100,7 +168,7 @@
     //
     // The data module cannot list its own keys, so the page keeps an index next to them.
 
-    const StoragePrefix = "steel-eagle.";
+    const StoragePrefix = "ironroost.";
     const StorageIndexKey = `${StoragePrefix}__keys`;
     // The earliest browser builds predate the index. Keeping the known keys here makes the first
     // Data-enabled release a real migration instead of only migrating saves written afterwards.
@@ -243,10 +311,86 @@
         return btoa(String.fromCharCode(...combined));
     }
 
+    // ------------------------------------------------------------------- keyboard
+    //
+    // The second co-op seat is keyboard-only, so the menu has to know whether this device has
+    // keys before it offers the mode. The web has no API that answers that, so this is two
+    // signals: a device reporting a fine pointer has a mouse or trackpad and effectively always
+    // has a keyboard too, and any real key press settles it outright. The press is what makes a
+    // wrong guess self-correcting — a keyboard the media query missed announces itself the
+    // moment it is used.
+
+    let keyboardSeen = false;
+    window.addEventListener(
+        "keydown",
+        event => { if (event.isTrusted) keyboardSeen = true; },
+        { capture: true, passive: true }
+    );
+
+    function hasPhysicalKeyboard() {
+        if (keyboardSeen) return true;
+        try {
+            return window.matchMedia("(any-pointer: fine)").matches;
+        } catch (_) {
+            // Never hide a mode because the probe itself broke; a wrong yes costs a confusing
+            // run, a wrong no costs the feature outright.
+            return true;
+        }
+    }
+
+    // The mirror image, for the on-screen stick and trigger. `pointer: coarse` asks what the
+    // *primary* pointer is, not whether a touchscreen exists at all — so a touchscreen laptop,
+    // where the trackpad leads, starts without the pad and gets it the moment a finger lands.
+
+    let touchSeen = false;
+    window.addEventListener(
+        "pointerdown",
+        event => { if (event.isTrusted && event.pointerType === "touch") touchSeen = true; },
+        { capture: true, passive: true }
+    );
+
+    function usesTouchControls() {
+        if (touchSeen) return true;
+        try {
+            return window.matchMedia("(pointer: coarse)").matches;
+        } catch (_) {
+            // A broken probe must not strand a touch player with no controls at all.
+            return true;
+        }
+    }
+
+    // ----------------------------------------------------------------- dev unlock
+    //
+    // Stage locks make the campaign reveal itself in order, which is no help when the thing you
+    // need to look at is stage 31. So a page served from a development machine opens all of them.
+    //
+    // This is deliberately keyed off the page's own origin and nothing else — no build flag, no
+    // query parameter, no stored setting. A build flag would be the obvious way to do it and is
+    // the more dangerous one: it would create an unlocked distribution sitting in the same folder
+    // that packageCrazyGamesBasic zips, and the mistake would ship silently. Tying it to the
+    // origin means there is only ever one build, and the portal can never be one of these hosts.
+    //
+    // `localhost` also covers a phone reached over `adb reverse`, which serves the desktop's port
+    // as the device's own localhost — so a real handset gets every stage too.
+
+    const LoopbackHosts = ["localhost", "127.0.0.1", "[::1]", "::1"];
+
+    function unlocksAllStages() {
+        try {
+            return LoopbackHosts.includes(location.hostname);
+        } catch (_) {
+            // Anything unreadable is treated as "not a dev machine", which is the safe answer.
+            return false;
+        }
+    }
+
     const portal = {
         get environment() { return state.environment; },
         get isAudioMuted() { return state.audioMuted; },
         get isLeaderboardAvailable() { return Boolean(leaderboardKey()); },
+        get hasPhysicalKeyboard() { return hasPhysicalKeyboard(); },
+        get usesTouchControls() { return usesTouchControls(); },
+        get unlocksAllStages() { return unlocksAllStages(); },
 
         gameplayStart() {
             if (state.gameplayActive) return;
@@ -278,6 +422,10 @@
         audioLoad(name, base64) {
             const source = `data:audio/wav;base64,${base64}`;
             state.audio.sources.set(name, source);
+            if (name !== "EngineLoop") {
+                state.audio.encoded.set(name, base64);
+                decodeClip(name, base64);
+            }
             if (name === "EngineLoop") {
                 state.audio.engine?.pause();
                 const engine = new Audio(source);
@@ -291,19 +439,29 @@
 
         audioSetEnabled(enabled) {
             state.audio.enabled = Boolean(enabled);
-            if (!audioCanPlay()) {
-                state.audio.voices.forEach(voice => voice.pause());
-                state.audio.voices.clear();
-            }
+            if (!audioCanPlay()) silenceVoices();
             reconcileAudio();
         },
 
         audioPlay(name) {
             if (!audioCanPlay() || name === "EngineLoop") return;
+            const context = state.audio.context;
+            const buffer = state.audio.buffers.get(name);
+            // Only a running context: one still suspended would bank the sound and play every
+            // banked one at once when it wakes.
+            if (context && buffer && context.state === "running") {
+                const voice = context.createBufferSource();
+                voice.buffer = buffer;
+                voice.connect(state.audio.effects);
+                state.audio.voices.add(voice);
+                voice.addEventListener("ended", () => state.audio.voices.delete(voice), { once: true });
+                voice.start();
+                return;
+            }
             const source = state.audio.sources.get(name);
             if (!source) return;
             const voice = new Audio(source);
-            voice.volume = 0.7;
+            voice.volume = EffectsVolume;
             state.audio.voices.add(voice);
             const cleanup = () => state.audio.voices.delete(voice);
             voice.addEventListener("ended", cleanup, { once: true });
@@ -317,11 +475,12 @@
         },
 
         audioRelease() {
-            state.audio.voices.forEach(voice => voice.pause());
-            state.audio.voices.clear();
+            silenceVoices();
             state.audio.engine?.pause();
             state.audio.engine = null;
             state.audio.sources.clear();
+            state.audio.encoded.clear();
+            state.audio.buffers.clear();
             state.audio.engineRequested = false;
         },
 
@@ -364,7 +523,7 @@
         }
     };
 
-    window.steelEaglePortal = portal;
+    window.ironroostPortal = portal;
 
     // The game runs on WebAssembly GC. Browsers without it, and a bundle that fails to load at
     // all, would otherwise leave the player looking at the spinner forever.
@@ -399,11 +558,50 @@
         window.addEventListener("unhandledrejection", () => reportStartupFailure());
     }
 
+    // ------------------------------------------------------------------ render scale
+    //
+    // Compose sizes its canvas by window.devicePixelRatio and redraws all of it every frame, so
+    // the ratio decides how many pixels each frame costs. Touch devices draw at 1x and let the
+    // browser scale the picture up: at its native 2x an iPad in the CrazyGames app ran the game
+    // as a slideshow, at 1x it runs smoothly, and the art is pixel art that survives the upscale.
+    // Desktops keep their native density.
+
+    const pixelRatioProperty = Object.getOwnPropertyDescriptor(window, "devicePixelRatio") ??
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window), "devicePixelRatio");
+
+    function nativePixelRatio() {
+        try {
+            return (pixelRatioProperty?.get ? pixelRatioProperty.get.call(window) : window.devicePixelRatio) || 1;
+        } catch (_) {
+            return 1;
+        }
+    }
+
+    function isTouchDevice() {
+        try {
+            return window.matchMedia("(pointer: coarse)").matches;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    // A browser that keeps the ratio somewhere this cannot reach draws at its native density.
+    if (typeof pixelRatioProperty?.get === "function" && isTouchDevice()) {
+        try {
+            Object.defineProperty(window, "devicePixelRatio", {
+                get: () => Math.min(nativePixelRatio(), 1),
+                configurable: true
+            });
+        } catch (_) {
+            // Same: without the override the device draws at its native density.
+        }
+    }
+
     // The renderer reads the device pixel ratio when it starts and again on every window resize.
     // Dragging the window to a display with a different density changes the ratio without
     // changing the window, which would otherwise leave the board drawn at the wrong scale.
     function watchPixelRatio() {
-        const ratio = window.devicePixelRatio;
+        const ratio = nativePixelRatio();
         if (!ratio || typeof window.matchMedia !== "function") return;
         window.matchMedia(`(resolution: ${ratio}dppx)`).addEventListener(
             "change",
@@ -425,7 +623,7 @@
     function loadGameBundle() {
         if (!canStartGame || state.startupFailed) return;
         const script = document.createElement("script");
-        script.src = "steel-eagle.js";
+        script.src = "ironroost.js";
         script.async = true;
         script.addEventListener("error", () => reportStartupFailure("The game bundle could not be loaded."), {
             once: true

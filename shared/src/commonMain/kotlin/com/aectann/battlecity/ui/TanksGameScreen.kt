@@ -41,8 +41,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,6 +81,11 @@ import com.aectann.battlecity.TanksPlatform
 import com.aectann.battlecity.TanksResources
 import com.aectann.battlecity.TanksStageSummary
 import com.aectann.battlecity.TanksStrings
+import com.aectann.battlecity.TanksAds
+import com.aectann.battlecity.NoopTanksAds
+import androidx.compose.ui.text.style.TextAlign
+import com.aectann.battlecity.ResurrectionAdAvailability
+import com.aectann.battlecity.ResurrectionAdResult
 import com.aectann.battlecity.TanksViewModel
 import com.aectann.battlecity.engine.BattleCityDirection
 import com.aectann.battlecity.engine.BattleCityEffectKind
@@ -93,11 +100,21 @@ import com.aectann.battlecity.engine.BattleCityTileSnapshot
 import com.aectann.battlecity.engine.TanksUpgrade
 import com.aectann.battlecity.engine.TanksUpgradeLoadout
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
+/**
+ * How long the card between stages holds the board.
+ *
+ * The first one of a visit is the only place the controls are ever spelled out, and a second and
+ * a half is not enough to read them — especially the co-op line, which names two key sets. Every
+ * card after it is just a stage number the player already expects, so it keeps the original's
+ * brisk beat rather than taxing every transition with reading time nobody needs twice.
+ */
+private const val FirstStageCardMillis = 3600L
 private const val StageCardMillis = 1500L
 
 /** The start/pause button is meaningless once a run has ended. */
@@ -113,10 +130,12 @@ fun TanksGameScreen(
     platform: TanksPlatform,
     viewModel: TanksViewModel,
     assets: TanksAssets?,
-    onExitToMenu: () -> Unit
+    onExitToMenu: () -> Unit,
+    ads: TanksAds = NoopTanksAds
 ) {
     val session by viewModel.session.collectAsState()
     val renderState by viewModel.render.collectAsState()
+    val adsState by ads.state.collectAsState()
 
     val sound = remember { TanksSoundBank() }
     // One holder per seat. The on-screen pad only ever drives player one: co-op is a keyboard
@@ -124,6 +143,9 @@ fun TanksGameScreen(
     val heldInput = remember { TanksHeldInput() }
     val secondHeldInput = remember { TanksHeldInput() }
     val isCoop = session.isCoop
+    // Per visit, not per run: someone who came back to the menu and started again has read the
+    // controls already, but a fresh arrival on a portal page has not.
+    var controlsCardShown by remember { mutableStateOf(false) }
     var animationFrame by remember { mutableIntStateOf(0) }
     var showStageSelector by rememberSaveable { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -132,8 +154,12 @@ fun TanksGameScreen(
     // leave, so the board asks for it back whenever it is the only thing left. Without this the
     // keyboard stops steering after the first tap on Pause.
     var boardHasFocus by remember { mutableStateOf(false) }
+    // Ready counts as well as Playing: the stage card can be dismissed with a key, and a board
+    // that has not been given focus yet would never see one.
+    val boardWantsFocus =
+        session.phase == TanksPhase.Playing || session.phase == TanksPhase.Ready
     LaunchedEffect(boardHasFocus, session.phase, showStageSelector) {
-        if (!boardHasFocus && session.phase == TanksPhase.Playing && !showStageSelector) {
+        if (!boardHasFocus && boardWantsFocus && !showStageSelector) {
             withFrameNanos { } // Let the overlay finish leaving the composition first.
             runCatching { focusRequester.requestFocus() }
         }
@@ -144,8 +170,9 @@ fun TanksGameScreen(
         sound.install(platform.createSoundPlayer(clips, session.soundEnabled))
     }
 
-    LaunchedEffect(session.soundEnabled) {
-        sound.setEnabled(session.soundEnabled)
+    LaunchedEffect(session.soundEnabled, session.resurrectionInProgress, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
+        sound.setEnabled(session.soundEnabled && !session.resurrectionInProgress &&
+            !adsState.fullScreenShowing && !adsState.privacyOptionsBusy)
     }
 
     DisposableEffect(sound) {
@@ -189,6 +216,17 @@ fun TanksGameScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // A run started before the sprites are in is played blind under the loading panel, so none
+    // of the three ways off the stage card — its timer, a key, a tap — starts one until they are.
+    val currentAssets by rememberUpdatedState(assets)
+    val currentAdsState by rememberUpdatedState(adsState)
+    val startRun = {
+        if (currentAssets != null && !currentAdsState.fullScreenShowing && !currentAdsState.privacyOptionsBusy) {
+            controlsCardShown = true
+            viewModel.startOrResume()
+        }
+    }
+
     LaunchedEffect(session.phase, session.stage) {
         if (session.phase != TanksPhase.Playing) {
             heldInput.releaseAll()
@@ -197,15 +235,17 @@ fun TanksGameScreen(
         }
         if (session.phase == TanksPhase.Ready) {
             // The stage card holds the board for a beat, then the run starts by itself,
-            // the way the original does between stages.
+            // the way the original does between stages. The first card of a visit holds longer
+            // because it is carrying the controls; see FirstStageCardMillis.
             sound.play(TanksClip.StageStart)
-            delay(StageCardMillis)
-            viewModel.startOrResume()
+            delay(if (controlsCardShown) StageCardMillis else FirstStageCardMillis)
+            snapshotFlow { currentAssets != null }.first { it }
+            startRun()
         }
     }
 
-    LaunchedEffect(viewModel, session.phase) {
-        if (session.phase != TanksPhase.Playing) return@LaunchedEffect
+    LaunchedEffect(viewModel, session.phase, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
+        if (session.phase != TanksPhase.Playing || adsState.fullScreenShowing || adsState.privacyOptionsBusy) return@LaunchedEffect
         var previousFrame = withFrameNanos { it }
         // Counted here rather than read back out of animationFrame: a frame callback does not
         // see its own snapshot writes on every platform, and the sprite phase must keep moving.
@@ -229,8 +269,26 @@ fun TanksGameScreen(
         }
     }
 
+    // Leaving for the menu abandons the run: nothing leads back into it, and the next entry
+    // rebuilds from scratch. Worth a confirmation — but only once there is something to lose,
+    // because asking on a run that has scored nothing is pure friction.
+    var showExitConfirm by remember { mutableStateOf(false) }
+    val runWorthKeeping = session.campaignScore + (renderState?.stageScore ?: 0) > 0 ||
+        session.wave > 1 ||
+        !session.loadout.isEmpty
+
+    // One gate for both ways out, or the system back button would walk straight past the dialog.
+    val requestExitToMenu: () -> Unit = {
+        if (runWorthKeeping) showExitConfirm = true else onExitToMenu()
+    }
+
     PlatformBackHandler(enabled = true) {
-        if (session.phase == TanksPhase.Playing) viewModel.pause() else onExitToMenu()
+        when {
+            session.resurrectionInProgress -> Unit
+            showExitConfirm -> showExitConfirm = false
+            session.phase == TanksPhase.Playing -> viewModel.pause()
+            else -> requestExitToMenu()
+        }
     }
 
     // Overlays sit above the whole screen rather than inside the board. In landscape the board
@@ -244,6 +302,14 @@ fun TanksGameScreen(
                 val fireSeat = fireSeatForKey(event.key, isCoop)
                 val playing = session.phase == TanksPhase.Playing
                 when {
+                    // Any key dismisses the stage card. Checked before steering so that the very
+                    // key a player reaches for — a direction — is the one that starts the run,
+                    // instead of being swallowed while the card waits out its timer.
+                    session.phase == TanksPhase.Ready && event.type == KeyEventType.KeyDown -> {
+                        startRun()
+                        true
+                    }
+
                     steering != null -> {
                         val (seat, direction) = steering
                         val held = if (seat == 0) heldInput else secondHeldInput
@@ -320,6 +386,10 @@ fun TanksGameScreen(
                     activeDirection = heldInput.visibleDirection,
                     isRunning = session.phase == TanksPhase.Playing,
                     showStartButton = startButtonVisible(session.phase),
+                    // Re-read on every recomposition rather than remembered: the browser bridge
+                    // only learns the device is touch when a finger actually lands, and the
+                    // per-frame animation tick brings the answer in within a frame of that.
+                    touchControls = platform.usesTouchControls,
                     isFirePressed = heldInput.visibleFirePressed,
                     onDirectionChanged = heldInput::setPointerDirection,
                     onFirePressedChanged = heldInput::setPointerFire,
@@ -332,7 +402,14 @@ fun TanksGameScreen(
         }
 
         when (session.phase) {
-            TanksPhase.Ready -> TanksStageCard(session.stage)
+            TanksPhase.Ready -> TanksStageCard(
+                stage = session.stage,
+                isCoop = isCoop,
+                isEndless = session.isEndless,
+                // Starting the run flips the phase, which cancels the effect still counting the
+                // card's hold down — so the skip needs no flag of its own.
+                onSkip = startRun
+            )
 
             TanksPhase.Paused -> TanksPauseOverlay(
                 soundEnabled = session.soundEnabled,
@@ -349,7 +426,7 @@ fun TanksGameScreen(
                     showStageSelector = true
                 },
                 onSoundToggled = { viewModel.setSoundEnabled(it) },
-                onExitToMenu = onExitToMenu
+                onExitToMenu = requestExitToMenu
             )
 
             TanksPhase.StageCleared -> session.summary?.let { summary ->
@@ -372,6 +449,12 @@ fun TanksGameScreen(
             TanksPhase.GameOver -> TanksGameOverOverlay(
                 campaignScore = session.campaignScore + (renderState?.stageScore ?: 0),
                 endlessWave = session.wave.takeIf { session.isEndless },
+                canResurrect = session.canResurrect,
+                isCoop = session.isCoop,
+                adAvailability = adsState.resurrection,
+                resurrectionInProgress = session.resurrectionInProgress,
+                resurrectionResult = session.resurrectionResult,
+                onResurrect = { viewModel.resurrectWithAd(ads) },
                 onRetry = {
                     sound.play(TanksClip.MenuSelect)
                     viewModel.retryAfterLoss()
@@ -397,6 +480,26 @@ fun TanksGameScreen(
                 showStageSelector = false
             },
             onDismiss = { showStageSelector = false }
+        )
+    }
+
+    if (showExitConfirm) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirm = false },
+            title = { Text(stringResource(TanksStrings.pauseExitTitle)) },
+            text = { Text(stringResource(TanksStrings.pauseExitQuestion)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitConfirm = false
+                    sound.play(TanksClip.MenuSelect)
+                    onExitToMenu()
+                }) { Text(stringResource(TanksStrings.pauseExitConfirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitConfirm = false }) {
+                    Text(stringResource(TanksStrings.commonCancel))
+                }
+            }
         )
     }
 }
@@ -575,6 +678,8 @@ private fun TanksPlayArea(
     activeDirection: BattleCityDirection?,
     isRunning: Boolean,
     showStartButton: Boolean,
+    /** Draw the on-screen stick and trigger. False on a device that steers with keys. */
+    touchControls: Boolean,
     isFirePressed: Boolean,
     onDirectionChanged: (BattleCityDirection?) -> Unit,
     onFirePressedChanged: (Boolean) -> Unit,
@@ -585,7 +690,13 @@ private fun TanksPlayArea(
         val spacing = 12.dp
 
         if (isLandscape) {
-            val sideWidth = if (maxWidth < 700.dp) 150.dp else 176.dp
+            // Without the stick and trigger the flanks only have to hold a pause button, so the
+            // board takes the width they were using — which is most of the point of hiding them.
+            val sideWidth = when {
+                !touchControls -> 96.dp
+                maxWidth < 700.dp -> 150.dp
+                else -> 176.dp
+            }
             val boardSize = minOf(
                 maxHeight,
                 (maxWidth - sideWidth * 2 - spacing * 2).coerceAtLeast(160.dp)
@@ -595,11 +706,18 @@ private fun TanksPlayArea(
                 horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                DirectionJoystick(
-                    activeDirection = activeDirection,
-                    modifier = Modifier.size(sideWidth),
-                    onDirectionChanged = onDirectionChanged
-                )
+                if (touchControls) {
+                    DirectionJoystick(
+                        activeDirection = activeDirection,
+                        modifier = Modifier.size(sideWidth),
+                        onDirectionChanged = onDirectionChanged
+                    )
+                } else {
+                    // Balances the pause column opposite. Dropping the stick without this leaves
+                    // the board sitting off-centre, which reads as a layout bug rather than as
+                    // one fewer control.
+                    Spacer(modifier = Modifier.width(sideWidth))
+                }
                 TanksBoard(
                     modifier = Modifier.size(boardSize),
                     state = state,
@@ -607,16 +725,23 @@ private fun TanksPlayArea(
                     animationFrame = animationFrame
                 )
                 TanksActionPanel(
-                    modifier = Modifier.width(sideWidth).height(sideWidth + 40.dp),
+                    modifier = Modifier
+                        .width(sideWidth)
+                        .height(if (touchControls) sideWidth + 40.dp else 72.dp),
                     isRunning = isRunning,
                     showStartButton = showStartButton,
+                    showFire = touchControls,
                     isFirePressed = isFirePressed,
                     onFirePressedChanged = onFirePressedChanged,
                     onStartPause = onStartPause
                 )
             }
         } else {
-            val controlsHeight = if (maxHeight < 580.dp) 170.dp else 192.dp
+            val controlsHeight = when {
+                !touchControls -> 64.dp
+                maxHeight < 580.dp -> 170.dp
+                else -> 192.dp
+            }
             val joystickSize = if (maxHeight < 580.dp) 140.dp else 152.dp
             val boardSize = minOf(maxWidth, (maxHeight - controlsHeight - spacing).coerceAtLeast(160.dp))
             Column(
@@ -632,18 +757,26 @@ private fun TanksPlayArea(
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().height(controlsHeight).padding(8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = if (touchControls) {
+                        Arrangement.SpaceBetween
+                    } else {
+                        // One child left, so it centres instead of hugging the left edge.
+                        Arrangement.Center
+                    },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    DirectionJoystick(
-                        activeDirection = activeDirection,
-                        modifier = Modifier.size(joystickSize),
-                        onDirectionChanged = onDirectionChanged
-                    )
+                    if (touchControls) {
+                        DirectionJoystick(
+                            activeDirection = activeDirection,
+                            modifier = Modifier.size(joystickSize),
+                            onDirectionChanged = onDirectionChanged
+                        )
+                    }
                     TanksActionPanel(
                         modifier = Modifier.width(150.dp).height(controlsHeight - 16.dp),
                         isRunning = isRunning,
                         showStartButton = showStartButton,
+                        showFire = touchControls,
                         isFirePressed = isFirePressed,
                         onFirePressedChanged = onFirePressedChanged,
                         onStartPause = onStartPause
@@ -846,23 +979,43 @@ private fun FullScreenOverlay(content: @Composable () -> Unit) {
     }
 }
 
-/** The grey card the original shows between stages, covering the field while it is built. */
+/**
+ * The grey card the original shows between stages, covering the field while it is built.
+ *
+ * Tapping it starts the run immediately. The card is the only place the controls are written
+ * down, so it has to hold long enough to read — and a hold nobody can shorten is exactly the
+ * forced delay the platform's quality guidelines tell you to remove. Being skippable is what
+ * lets it be generous.
+ */
 @Composable
-private fun TanksStageCard(stage: Int) {
+private fun TanksStageCard(stage: Int, isCoop: Boolean, isEndless: Boolean, onSkip: () -> Unit) {
     Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF6B6B6B)),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF6B6B6B))
+            .pointerInput(Unit) { detectTapGestures { onSkip() } },
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = stringResource(TanksStrings.stage, stage),
+                text = if (isEndless) {
+                    stringResource(TanksStrings.wave, 1)
+                } else {
+                    stringResource(TanksStrings.stage, stage)
+                },
                 color = Color(0xFF1A1A1A),
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = stringResource(TanksStrings.controlsHint),
+                // This card is the only place a second player is told which keys are theirs, so
+                // it has to name both seats when there are two.
+                text = if (isCoop) {
+                    stringResource(TanksStrings.controlsHintCoop)
+                } else {
+                    stringResource(TanksStrings.controlsHint)
+                },
                 color = Color(0xFF242424),
                 fontSize = 13.sp
             )
@@ -1108,6 +1261,12 @@ private fun SummaryRow(label: String, value: Int) {
 private fun TanksGameOverOverlay(
     campaignScore: Int,
     endlessWave: Int?,
+    canResurrect: Boolean,
+    isCoop: Boolean,
+    adAvailability: ResurrectionAdAvailability,
+    resurrectionInProgress: Boolean,
+    resurrectionResult: ResurrectionAdResult?,
+    onResurrect: () -> Unit,
     onRetry: () -> Unit,
     onExitToMenu: () -> Unit
 ) {
@@ -1136,11 +1295,40 @@ private fun TanksGameOverOverlay(
             fontSize = 15.sp
         )
         Spacer(modifier = Modifier.height(18.dp))
-        Button(onClick = onRetry, modifier = Modifier.widthIn(min = 240.dp)) {
+        if (canResurrect) {
+            Text(
+                stringResource(if (isCoop) TanksStrings.resurrectionOfferCoop else TanksStrings.resurrectionOffer),
+                color = MutedText,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(max = 360.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onResurrect,
+                enabled = adAvailability == ResurrectionAdAvailability.Ready && !resurrectionInProgress,
+                modifier = Modifier.widthIn(min = 240.dp)
+            ) {
+                Text(stringResource(if (resurrectionInProgress) TanksStrings.resurrectionWatching else TanksStrings.resurrectionWatch))
+            }
+            val message = when {
+                resurrectionInProgress -> null
+                resurrectionResult == ResurrectionAdResult.NotEarned -> TanksStrings.resurrectionNotEarned
+                resurrectionResult == ResurrectionAdResult.Failed -> TanksStrings.resurrectionFailed
+                adAvailability == ResurrectionAdAvailability.Loading -> TanksStrings.resurrectionLoading
+                adAvailability == ResurrectionAdAvailability.Unavailable -> TanksStrings.resurrectionUnavailable
+                else -> null
+            }
+            if (message != null) {
+                Text(stringResource(message), color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        Button(onClick = onRetry, enabled = !resurrectionInProgress, modifier = Modifier.widthIn(min = 240.dp)) {
             Text(stringResource(TanksStrings.playAgain))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onExitToMenu, modifier = Modifier.widthIn(min = 240.dp)) {
+        OutlinedButton(onClick = onExitToMenu, enabled = !resurrectionInProgress, modifier = Modifier.widthIn(min = 240.dp)) {
             Text(stringResource(TanksStrings.commonBack))
         }
     }
@@ -1226,15 +1414,27 @@ private fun DirectionJoystick(
     }
 }
 
+/**
+ * Pause and fire.
+ *
+ * Fire belongs to touch and disappears with the rest of the pad. Pause does not: it is the only
+ * visible way to stop a run on any device, and the `P` shortcut is only ever spelled out on the
+ * stage card, which is gone a second and a half in.
+ */
 @Composable
 private fun TanksActionPanel(
     modifier: Modifier,
     isRunning: Boolean,
     showStartButton: Boolean,
+    showFire: Boolean,
     isFirePressed: Boolean,
     onFirePressedChanged: (Boolean) -> Unit,
     onStartPause: () -> Unit
 ) {
+    // With neither button there is nothing to frame, and an empty glass panel floating beside
+    // the board looks like a rendering fault.
+    if (!showStartButton && !showFire) return
+
     GlassPanel(modifier = modifier) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val compact = maxHeight < 160.dp
@@ -1257,15 +1457,17 @@ private fun TanksActionPanel(
                         onClick = onStartPause
                     )
                 }
-                ControlHoldButton(
-                    text = stringResource(TanksStrings.fire),
-                    isActive = isFirePressed,
-                    modifier = Modifier.size(fireSize),
-                    shape = CircleShape,
-                    color = Color(0xFFD13D2F).copy(alpha = 0.82f),
-                    activeColor = Color(0xFFFF5A45).copy(alpha = 0.92f),
-                    onPressedChanged = onFirePressedChanged
-                )
+                if (showFire) {
+                    ControlHoldButton(
+                        text = stringResource(TanksStrings.fire),
+                        isActive = isFirePressed,
+                        modifier = Modifier.size(fireSize),
+                        shape = CircleShape,
+                        color = Color(0xFFD13D2F).copy(alpha = 0.82f),
+                        activeColor = Color(0xFFFF5A45).copy(alpha = 0.92f),
+                        onPressedChanged = onFirePressedChanged
+                    )
+                }
             }
         }
     }

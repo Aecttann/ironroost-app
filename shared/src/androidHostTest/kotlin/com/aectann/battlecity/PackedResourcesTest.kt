@@ -7,9 +7,12 @@ import com.aectann.battlecity.engine.BattleCityInputs
 import com.aectann.battlecity.engine.BattleCityLevelParser
 import com.aectann.battlecity.engine.BattleCityMaxDifficulty
 import com.aectann.battlecity.engine.BattleCityMaxStage
+import com.aectann.battlecity.engine.BattleCityStatus
+import com.aectann.battlecity.engine.TanksEndlessWaves
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -100,6 +103,42 @@ class PackedResourcesTest {
             assertEquals(13, state.tiles.cols, "stage $stage board width")
             assertEquals(13, state.tiles.rows, "stage $stage board height")
         }
+    }
+
+    /**
+     * Endless picks its arena by number, and the engine tests run it on a synthetic corridor, so
+     * nothing else checks that the constant points at a real stage that co-op can actually start
+     * on. A wrong number would only surface when a player opened the mode.
+     */
+    @Test
+    fun theEndlessArenaIsAPackedStageThatSeatsTwoPlayers() {
+        val file = resource(BattleCityLevelParser.stagePath(TanksEndlessWaves.ArenaStage))
+        assertTrue(file.isFile, "endless arena stage ${TanksEndlessWaves.ArenaStage} is not packed")
+
+        val level = BattleCityLevelParser.parse(file.readText())
+        val secondSpawn = level.spawnPoints.player2
+        assertTrue(
+            secondSpawn != null && secondSpawn.size == 2,
+            "the endless arena has no second spawn, so co-op would mirror player one"
+        )
+
+        val engine = BattleCityEngine(
+            stageNumber = TanksEndlessWaves.ArenaStage,
+            level = level,
+            seed = 1L,
+            initialLives = listOf(3, 3),
+            endless = true
+        )
+        var state = engine.currentState()
+        repeat(600) {
+            state = engine.step(1f / 60f, BattleCityInputs.Idle).state
+        }
+        assertEquals(2, state.players.size, "both seats should be on the board")
+        assertNotEquals(
+            BattleCityStatus.Won,
+            state.status,
+            "endless must never report the stage as won"
+        )
     }
 
     /**

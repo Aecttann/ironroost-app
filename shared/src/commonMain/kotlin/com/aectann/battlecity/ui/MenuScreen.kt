@@ -52,6 +52,8 @@ fun MenuScreen(
     collectionTotal: Int,
     bestEndlessWave: Int,
     playerCount: Int,
+    /** False on a device with no keys to drive the second seat with. */
+    coopAvailable: Boolean,
     onPlayerCountChange: (Int) -> Unit,
     onNewGame: () -> Unit,
     onContinue: () -> Unit,
@@ -70,7 +72,7 @@ fun MenuScreen(
     ) {
         if (maxWidth >= 700.dp) {
             Row(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -86,6 +88,7 @@ fun MenuScreen(
                     dailyClaimable = dailyClaimable,
                     bestEndlessWave = bestEndlessWave,
                     playerCount = playerCount,
+                    coopAvailable = coopAvailable,
                     onPlayerCountChange = onPlayerCountChange,
                     onNewGame = onNewGame,
                     onContinue = onContinue,
@@ -121,6 +124,7 @@ fun MenuScreen(
                     dailyClaimable = dailyClaimable,
                     bestEndlessWave = bestEndlessWave,
                     playerCount = playerCount,
+                    coopAvailable = coopAvailable,
                     onPlayerCountChange = onPlayerCountChange,
                     onNewGame = onNewGame,
                     onContinue = onContinue,
@@ -192,6 +196,8 @@ private fun PrimaryMenuActions(
     dailyClaimable: Boolean,
     bestEndlessWave: Int,
     playerCount: Int,
+    /** False on a device with no keys to drive the second seat with. */
+    coopAvailable: Boolean,
     onPlayerCountChange: (Int) -> Unit,
     onNewGame: () -> Unit,
     onContinue: () -> Unit,
@@ -205,7 +211,7 @@ private fun PrimaryMenuActions(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        SeatSelector(buttonWidth, playerCount, onPlayerCountChange)
+        SeatSelector(buttonWidth, playerCount, coopAvailable, onPlayerCountChange)
         Spacer(modifier = Modifier.height(12.dp))
         Button(onClick = onNewGame, modifier = buttonWidth) {
             Text(stringResource(TanksStrings.menuNewGame))
@@ -277,26 +283,46 @@ private fun SecondaryMenuActions(
 /**
  * One-or-two seats, as a pair of segments rather than a switch: the labels have to name what
  * each option is, and a bare toggle beside the word "players" reads as an on/off.
+ *
+ * Without a keyboard the second segment is shown disabled with the reason underneath rather than
+ * hidden. Hiding it would read as the mode not existing, and on a phone that is the wrong thing
+ * to learn — the same player on a desktop has it. Disabled-with-a-reason also fails safely if
+ * the keyboard probe is wrong: the player can see what they are missing and why.
  */
 @Composable
 private fun SeatSelector(
     modifier: Modifier,
     playerCount: Int,
+    coopAvailable: Boolean,
     onPlayerCountChange: (Int) -> Unit
 ) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SeatOption(
-            modifier = Modifier.weight(1f),
-            label = stringResource(TanksStrings.menuPlayersOne),
-            selected = playerCount <= 1,
-            onClick = { onPlayerCountChange(1) }
-        )
-        SeatOption(
-            modifier = Modifier.weight(1f),
-            label = stringResource(TanksStrings.menuPlayersTwo),
-            selected = playerCount > 1,
-            onClick = { onPlayerCountChange(2) }
-        )
+    Column(modifier = modifier) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SeatOption(
+                modifier = Modifier.weight(1f),
+                label = stringResource(TanksStrings.menuPlayersOne),
+                selected = playerCount <= 1,
+                enabled = true,
+                onClick = { onPlayerCountChange(1) }
+            )
+            SeatOption(
+                modifier = Modifier.weight(1f),
+                label = stringResource(TanksStrings.menuPlayersTwo),
+                selected = coopAvailable && playerCount > 1,
+                enabled = coopAvailable,
+                onClick = { onPlayerCountChange(2) }
+            )
+        }
+        if (!coopAvailable) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(TanksStrings.menuCoopNeedsKeyboard),
+                color = MutedText,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
@@ -305,15 +331,20 @@ private fun SeatOption(
     modifier: Modifier,
     label: String,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     if (selected) {
-        Button(onClick = onClick, modifier = modifier) {
+        Button(onClick = onClick, modifier = modifier, enabled = enabled) {
             Text(label, fontSize = 13.sp)
         }
     } else {
-        OutlinedButton(onClick = onClick, modifier = modifier) {
-            Text(label, color = MutedText, fontSize = 13.sp)
+        OutlinedButton(onClick = onClick, modifier = modifier, enabled = enabled) {
+            Text(
+                text = label,
+                color = if (enabled) MutedText else MutedText.copy(alpha = 0.4f),
+                fontSize = 13.sp
+            )
         }
     }
 }

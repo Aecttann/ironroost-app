@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">Завантаження…</string>
     <string name="tanks_stage">Рівень %1$d</string>
     <string name="tanks_score">Рахунок: %1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">Нескінченний</string>
     <string name="leaderboard_wave_row">Хвиля %1$d</string>
     <string name="leaderboard_portal_note">Нескінченні забіги також ідуть у таблицю порталу.</string>
+    <string name="menu_coop_needs_keyboard">Двоє грають на одній клавіатурі. Підключи її, щоб грати вдвох.</string>
+    <string name="pause_exit_title">Покинути забіг?</string>
+    <string name="pause_exit_question">Поточний забіг буде втрачено разом з очками й покращеннями. Пройдені рівні лишаться відкритими.</string>
+    <string name="pause_exit_confirm">Покинути</string>
+    <string name="resurrection_offer">Перегляньте рекламу, щоб воскресити танк з одним життям і продовжити цю спробу.</string>
+    <string name="resurrection_offer_coop">Перегляньте рекламу, щоб воскресити гравця 1 з одним життям і продовжити цю спробу.</string>
+    <string name="resurrection_watch">Переглянути рекламу · +1 життя</string>
+    <string name="resurrection_watching">Перегляд реклами…</string>
+    <string name="resurrection_loading">Завантаження реклами…</string>
+    <string name="resurrection_unavailable">Реклама недоступна. Можна зіграти знову або повернутися в меню.</string>
+    <string name="resurrection_not_earned">Винагороду не отримано. Перегляньте рекламу, щоб отримати одне життя.</string>
+    <string name="resurrection_failed">Не вдалося показати рекламу. Спробуйте пізніше.</string>
+    <string name="ads_privacy_options">Налаштування конфіденційності реклами</string>
+    <string name="ads_privacy_failed">Не вдалося відкрити налаштування конфіденційності. Спробуйте знову.</string>
+    <string name="ads_age_title">Ваш вік</string>
+    <string name="ads_age_prompt">Вкажіть ваш вік у повних роках.</string>
+    <string name="ads_age_label">Вік у роках</string>
+    <string name="ads_age_invalid">Вкажіть ціле число від 0 до 130.</string>
+    <string name="ads_age_continue">Продовжити</string>
+    <string name="ads_age_skip">Пропустити</string>
 </resources>

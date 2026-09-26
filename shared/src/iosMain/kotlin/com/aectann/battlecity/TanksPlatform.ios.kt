@@ -11,6 +11,7 @@ import platform.AVFAudio.AVAudioPlayer
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
 import platform.AVFAudio.setActive
+import platform.GameController.GCKeyboard
 import platform.Foundation.NSBundle
 import platform.Foundation.NSData
 import platform.Foundation.NSUserDefaults
@@ -47,6 +48,17 @@ private class IosTanksPlatform : TanksPlatform {
      * edge to edge by ContentView, so there is nothing to toggle here.
      */
     override fun setImmersive(enabled: Boolean) = Unit
+
+    /**
+     * GameController reports a coalesced keyboard whenever a physical one is attached, which on
+     * iPad means a keyboard case or a paired Bluetooth board. Read per call, because it can be
+     * connected and disconnected while the game is open.
+     */
+    override val hasPhysicalKeyboard: Boolean
+        get() = GCKeyboard.coalescedKeyboard != null
+
+    /** Every device this build runs on has a touchscreen. */
+    override val usesTouchControls: Boolean = true
 }
 
 private class UserDefaultsStore(private val defaults: NSUserDefaults) : TanksKeyValueStore {

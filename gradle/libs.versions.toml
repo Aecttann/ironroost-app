@@ -16,8 +16,12 @@ kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.9.0"
 kotlin = "2.4.10"
 material3 = "1.11.0-alpha07"
+google-mobileAds = "25.5.0"
+google-ump = "4.0.0"
 
 [libraries]
+google-mobileAds = { module = "com.google.android.gms:play-services-ads", version.ref = "google-mobileAds" }
+google-ump = { module = "com.google.android.ump:user-messaging-platform", version.ref = "google-ump" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }

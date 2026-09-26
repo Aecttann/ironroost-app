@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">लोड हो रहा है…</string>
     <string name="tanks_stage">चरण %1$d</string>
     <string name="tanks_score">अंक: %1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">अंतहीन</string>
     <string name="leaderboard_wave_row">लहर %1$d</string>
     <string name="leaderboard_portal_note">अंतहीन दौड़ें पोर्टल लीडरबोर्ड पर भी भेजी जाती हैं।</string>
+    <string name="menu_coop_needs_keyboard">दो खिलाड़ी एक ही कीबोर्ड साझा करते हैं। को-ऑप खेलने के लिए कीबोर्ड कनेक्ट करें।</string>
+    <string name="pause_exit_title">दौड़ छोड़ें?</string>
+    <string name="pause_exit_question">चालू दौड़ अपने स्कोर और अपग्रेड के साथ खो जाएगी। पहले पूरी की गई स्टेज खुली रहेंगी।</string>
+    <string name="pause_exit_confirm">छोड़ें</string>
+    <string name="resurrection_offer">विज्ञापन देखकर अपने टैंक को एक जीवन के साथ पुनर्जीवित करें और यह प्रयास जारी रखें।</string>
+    <string name="resurrection_offer_coop">विज्ञापन देखकर खिलाड़ी 1 को एक जीवन के साथ पुनर्जीवित करें और यह प्रयास जारी रखें।</string>
+    <string name="resurrection_watch">विज्ञापन देखें · +1 जीवन</string>
+    <string name="resurrection_watching">विज्ञापन चल रहा है…</string>
+    <string name="resurrection_loading">विज्ञापन लोड हो रहा है…</string>
+    <string name="resurrection_unavailable">विज्ञापन उपलब्ध नहीं है। फिर से खेलें या मेनू पर लौटें।</string>
+    <string name="resurrection_not_earned">इनाम नहीं मिला। एक जीवन पाने के लिए विज्ञापन देखें।</string>
+    <string name="resurrection_failed">विज्ञापन नहीं दिखाया जा सका। बाद में फिर कोशिश करें।</string>
+    <string name="ads_privacy_options">विज्ञापन गोपनीयता सेटिंग</string>
+    <string name="ads_privacy_failed">गोपनीयता सेटिंग नहीं खुल सकीं। फिर कोशिश करें।</string>
+    <string name="ads_age_title">आपकी उम्र</string>
+    <string name="ads_age_prompt">अपनी उम्र पूरे वर्षों में दर्ज करें।</string>
+    <string name="ads_age_label">उम्र वर्षों में</string>
+    <string name="ads_age_invalid">0 से 130 तक एक पूर्ण संख्या दर्ज करें।</string>
+    <string name="ads_age_continue">जारी रखें</string>
+    <string name="ads_age_skip">छोड़ें</string>
 </resources>

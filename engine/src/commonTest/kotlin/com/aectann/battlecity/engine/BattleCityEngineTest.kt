@@ -296,4 +296,53 @@ class BattleCityEngineTest {
         val later = subject.run(2f)
         assertEquals(first.totalEnemies, later.totalEnemies)
     }
+
+    // -------------------------------------------------------------------- deaths
+
+    /**
+     * Enemy fire comes straight down column 1 onto the player, who faces right down an open row
+     * with the trigger held, so a shell of the player's own is in the air when the enemy's lands.
+     * Steel everywhere else keeps the two lines of fire out of each other's way.
+     */
+    private fun crossfire() = listOf(
+        "S.SSSSSSS",
+        "S.SSSSSSS",
+        "S.SSSSSSS",
+        "S.SSSSSSS",
+        "S........",
+        "SSSSSSSSS",
+        "SSSSHSSSS"
+    )
+
+    @Test
+    fun dyingWithAShellInTheAirDoesNotBreakTheBulletPass() {
+        // A death clears the dead tank's shells out of the list the bullet pass is walking. The
+        // pass used to trip over that removal and throw, which on the web build ended the frame
+        // loop and froze the game on the spot.
+        val subject = engine(
+            level(
+                crossfire(),
+                enemies = listOf(BattleCityEnemyGroup("basic", 4)),
+                player = listOf(1, 4),
+                base = listOf(4, 6),
+                enemySpawns = listOf(listOf(1, 0))
+            )
+        )
+        subject.step(1f / 60f, BattleCityInput(BattleCityDirection.Right, false))
+
+        var previous = subject.step(0f, fireOnly).state
+        var state = previous
+        var elapsed = 0f
+        while (state.playerDeaths == 0 && elapsed < 30f) {
+            previous = state
+            state = subject.step(1f / 60f, fireOnly).state
+            elapsed += 1f / 60f
+        }
+
+        assertEquals(1, state.playerDeaths, "the enemy never landed a shot")
+        assertTrue(
+            previous.bullets.any { it.isPlayerBullet },
+            "the player had no shell in the air when it died, so this did not test the removal"
+        )
+    }
 }

@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">正在加载…</string>
     <string name="tanks_stage">关卡 %1$d</string>
     <string name="tanks_score">得分：%1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">无尽模式</string>
     <string name="leaderboard_wave_row">第 %1$d 波</string>
     <string name="leaderboard_portal_note">无尽模式的成绩也会提交到门户排行榜。</string>
+    <string name="menu_coop_needs_keyboard">双人模式共用一个键盘。请连接键盘后再游玩。</string>
+    <string name="pause_exit_title">要退出本局吗？</string>
+    <string name="pause_exit_question">进行中的这局会连同分数和强化一起丢失。已通关的关卡仍保持解锁。</string>
+    <string name="pause_exit_confirm">退出</string>
+    <string name="resurrection_offer">观看广告，让坦克以一条生命复活并继续本局游戏。</string>
+    <string name="resurrection_offer_coop">观看广告，让玩家1以一条生命复活并继续本局游戏。</string>
+    <string name="resurrection_watch">观看广告 · 生命+1</string>
+    <string name="resurrection_watching">正在播放广告…</string>
+    <string name="resurrection_loading">正在加载广告…</string>
+    <string name="resurrection_unavailable">广告暂不可用。可以重新游戏或返回菜单。</string>
+    <string name="resurrection_not_earned">未获得奖励。观看广告可获得一条生命。</string>
+    <string name="resurrection_failed">无法显示广告，请稍后重试。</string>
+    <string name="ads_privacy_options">广告隐私设置</string>
+    <string name="ads_privacy_failed">无法打开隐私设置，请重试。</string>
+    <string name="ads_age_title">你的年龄</string>
+    <string name="ads_age_prompt">请输入周岁年龄。</string>
+    <string name="ads_age_label">年龄（岁）</string>
+    <string name="ads_age_invalid">请输入0到130之间的整数。</string>
+    <string name="ads_age_continue">继续</string>
+    <string name="ads_age_skip">跳过</string>
 </resources>

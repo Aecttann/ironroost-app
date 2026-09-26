@@ -260,21 +260,10 @@ class BattleCityEngine(
 
     /** Puts the base walls and a share of the shelled bricks back for the next wave. */
     private fun repairForWaveRollover() {
-        val bulwark = upgrades.levelOf(TanksUpgrade.Bulwark)
-        if (bulwark > 0) {
-            fortifyBase(true)
-            fortifyRemaining = ShovelSeconds * bulwark
-        } else {
-            // The eagle's own wall always comes back as brick, upgrade or not; a run that lost it
-            // on wave two is otherwise unwinnable for reasons the player cannot act on.
-            fortressCells.forEach { index ->
-                if (tiles[index] == '.') {
-                    tiles[index] = 'B'
-                    quarters[index] = QuarterAll
-                }
-            }
-        }
-
+        // The general repair runs first and the eagle's own wall is settled afterwards. The other
+        // order looks equivalent and is not: every shipped map walls the base in brick, so the
+        // repair pass treats those cells as repairable and would turn the steel Bulwark just paid
+        // for straight back into brick.
         val shelled = originalTiles.indices.filter {
             originalTiles[it] == 'B' && (tiles[it] != 'B' || quarters[it] != QuarterAll)
         }
@@ -287,6 +276,21 @@ class BattleCityEngine(
                     quarters[index] = QuarterAll
                 }
             }
+
+        // The eagle's wall always comes back, upgrade or not: a run that lost it on wave two is
+        // otherwise unwinnable for reasons the player cannot act on. Bulwark makes it steel for
+        // a while instead of brick.
+        val bulwark = upgrades.levelOf(TanksUpgrade.Bulwark)
+        val steelWall = bulwark > 0
+        if (steelWall) fortifyRemaining = ShovelSeconds * bulwark
+        fortressCells.forEach { index ->
+            // A player parked in the wall's own cell would be sealed inside it and have to shoot
+            // their way out, which is a rough way to be thanked for defending the base.
+            if (isCellOccupied(index % cols, index / cols)) return@forEach
+            tiles[index] = if (steelWall) 'S' else 'B'
+            quarters[index] = if (steelWall) 0 else QuarterAll
+        }
+
         bumpGrid()
     }
 
@@ -355,6 +359,22 @@ class BattleCityEngine(
 
     /** The state as it stands, without re-running the stage setup. */
     fun currentState(): BattleCityRenderState = renderState()
+
+    val canResurrect: Boolean
+        get() = status == BattleCityStatus.Lost && !baseDestroyed && players.none { it.active }
+
+    /** Restores one life to player one without rebuilding the stage or resetting its score. */
+    fun resurrect(): BattleCityRenderState? {
+        if (!canResurrect) return null
+        val slot = players.first()
+        slot.lives = 1
+        slot.respawnDelay = 0f
+        status = BattleCityStatus.Running
+        accumulator = 0f
+        events.clear()
+        spawnPlayer(slot)
+        return renderState()
+    }
 
     /**
      * Advances the simulation by [elapsedSeconds] of wall clock time in fixed slices.
@@ -728,12 +748,12 @@ class BattleCityEngine(
 
         neutralizeOpposingBullets()
 
-        val iterator = bullets.iterator()
-        while (iterator.hasNext()) {
-            val bullet = iterator.next()
-            if (handleBulletTankHit(bullet) || handleBulletTileHit(bullet)) {
-                iterator.remove()
-            }
+        // Walks a copy: a hit that kills a player also takes that player's shells off the board
+        // (killPlayer), and removing from the list mid-walk throws. A shell that went that way
+        // is skipped instead of resolved.
+        for (bullet in bullets.toList()) {
+            if (bullet !in bullets) continue
+            if (handleBulletTankHit(bullet) || handleBulletTileHit(bullet)) bullets.remove(bullet)
         }
     }
 

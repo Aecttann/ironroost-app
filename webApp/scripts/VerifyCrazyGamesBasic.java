@@ -28,7 +28,7 @@ public final class VerifyCrazyGamesBasic {
             throw new IllegalStateException("Production distribution has no root index.html");
         }
         require(Files.isRegularFile(root.resolve("portal.js")), "Production distribution has no portal.js");
-        require(Files.isRegularFile(root.resolve("steel-eagle.js")), "Production distribution has no game bundle");
+        require(Files.isRegularFile(root.resolve("ironroost.js")), "Production distribution has no game bundle");
 
         String index = Files.readString(indexFile);
         String portal = Files.readString(root.resolve("portal.js"));
@@ -36,10 +36,18 @@ public final class VerifyCrazyGamesBasic {
         require(!index.contains("@LEADERBOARD_KEY@"), "index.html still contains the leaderboard token");
         require(index.contains(CRAZY_SDK), "index.html does not load CrazyGames SDK v3");
         require(index.contains("portal.js"), "index.html does not load the portal bridge");
-        require(!index.contains("src=\"steel-eagle.js\""),
+        require(!index.contains("src=\"ironroost.js\""),
                 "The game bundle must be injected after SDK/Data initialization");
         require(portal.contains("loadGameBundle()") && portal.contains("LegacyStorageKeys"),
                 "Portal bridge is missing ordered startup or legacy save migration");
+
+        // The development stage unlock must still be decided by the page's origin. Hardcoding it
+        // while debugging is an easy thing to do and an invisible thing to ship, so the exact
+        // comparison has to survive into the uploaded bundle or this build fails.
+        require(portal.contains("LoopbackHosts.includes(location.hostname)"),
+                "The all-stages unlock is no longer gated on a loopback origin; "
+                        + "restore the check in portal.js before packaging");
+
         verifyPageReferences(index);
 
         List<Path> files;

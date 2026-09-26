@@ -38,10 +38,10 @@ val stampAppVersion = tasks.register<Copy>("stampAppVersion") {
 
 kotlin {
     wasmJs {
-        outputModuleName = "steel-eagle"
+        outputModuleName = "ironroost"
         browser {
             commonWebpackConfig {
-                outputFileName = "steel-eagle.js"
+                outputFileName = "ironroost.js"
             }
         }
         binaries.executable()
@@ -78,13 +78,13 @@ val verifyCrazyGamesBasic = tasks.register<Exec>("verifyCrazyGamesBasic") {
     )
 }
 
-tasks.register<Zip>("packageCrazyGamesBasic") {
+// The developer portal takes the build as a folder dropped onto the upload page, not as an
+// archive. Sync rather than Copy, so a file the new build dropped cannot ride along from the
+// previous upload.
+tasks.register<Sync>("packageCrazyGamesBasic") {
     group = "distribution"
-    description = "Builds the upload-ready CrazyGames Basic ZIP."
+    description = "Stages the upload-ready CrazyGames Basic folder."
     dependsOn(verifyCrazyGamesBasic)
     from(productionDistribution)
-    destinationDirectory = layout.buildDirectory.dir("crazygames")
-    archiveFileName = "steel-eagle-crazygames-basic.zip"
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
+    into(layout.buildDirectory.dir("crazygames/ironroost-crazygames-basic"))
 }

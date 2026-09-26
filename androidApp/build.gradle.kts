@@ -32,6 +32,13 @@ dependencies {
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
+    implementation(libs.google.mobileAds)
+    implementation(libs.google.ump)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
+    implementation(libs.androidx.lifecycle.runtimeCompose)
+    implementation(libs.androidx.lifecycle.viewmodelCompose)
+    implementation(libs.kotlinx.coroutines.core)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
@@ -68,7 +75,15 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+            buildConfigField("String", "MENU_BANNER_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/9214589741\"")
+            buildConfigField("String", "RESURRECTION_AD_UNIT_ID", "\"ca-app-pub-3940256099942544/5354046379\"")
+        }
         release {
+            manifestPlaceholders["admobAppId"] = "ca-app-pub-4014372145678923~7542987599"
+            buildConfigField("String", "MENU_BANNER_AD_UNIT_ID", "\"ca-app-pub-4014372145678923/4235221412\"")
+            buildConfigField("String", "RESURRECTION_AD_UNIT_ID", "\"ca-app-pub-4014372145678923/3029027517\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -86,5 +101,6 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }

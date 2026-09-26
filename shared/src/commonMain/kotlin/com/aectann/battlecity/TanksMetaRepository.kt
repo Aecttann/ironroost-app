@@ -9,6 +9,7 @@ import com.aectann.battlecity.engine.TanksMetaCodec
 import com.aectann.battlecity.engine.TanksMetaSave
 import com.aectann.battlecity.engine.TanksMetaStats
 import com.aectann.battlecity.engine.TanksNickname
+import com.aectann.battlecity.engine.TanksPendingRunLoss
 import com.aectann.battlecity.engine.TanksScoreEntry
 import com.aectann.battlecity.engine.epochDay
 
@@ -26,6 +27,11 @@ class TanksMetaRepository(
     private val clock: () -> Long
 ) {
     private var cached: TanksMetaSave = TanksMetaCodec.decode(store.getString(MetaKey))
+
+    init {
+        // A process restart cannot resume the engine that owned an unresolved resurrection offer.
+        finishPendingLoss()
+    }
 
     fun today(): Int = epochDay(clock())
 
@@ -86,12 +92,51 @@ class TanksMetaRepository(
         playerLevel: Int
     ): TanksMetaSave = mutate { current ->
         current.copy(
-            stats = current.stats
-                .plusKills(kills)
-                .plusPowerUps(powerUps)
-                .let { it.copy(bestPlayerLevel = maxOf(it.bestPlayerLevel, playerLevel)) }
+            stats = lostStageStats(current.stats, kills, powerUps, playerLevel)
         )
     }
+
+    fun prepareRunLoss(
+        kills: Map<String, Int>,
+        powerUps: Map<String, Int>,
+        playerLevel: Int,
+        score: Int,
+        stageOrWave: Int,
+        endless: Boolean
+    ) = mutate { current ->
+        current.copy(pendingRunLoss = TanksPendingRunLoss(
+            kills = kills,
+            powerUps = powerUps,
+            playerLevel = playerLevel,
+            entry = TanksScoreEntry(current.nickname, score, stageOrWave, today()),
+            endless = endless
+        ))
+    }
+
+    /** Stats, score, and removal of the pending record are persisted in one save mutation. */
+    fun finishPendingLoss(): TanksPendingRunLoss? {
+        val loss = cached.pendingRunLoss ?: return null
+        mutate { current ->
+            val stats = lostStageStats(current.stats, loss.kills, loss.powerUps, loss.playerLevel)
+            current.copy(
+                pendingRunLoss = null,
+                stats = if (loss.endless) stats.copy(bestEndlessWave = maxOf(stats.bestEndlessWave, loss.entry.stage)) else stats,
+                leaderboard = if (loss.endless) current.leaderboard else TanksLeaderboards.insert(current.leaderboard, loss.entry),
+                endlessLeaderboard = if (loss.endless) TanksLeaderboards.insert(current.endlessLeaderboard, loss.entry) else current.endlessLeaderboard
+            )
+        }
+        return loss
+    }
+
+    fun discardPendingLoss() = mutate { it.copy(pendingRunLoss = null) }
+
+    private fun lostStageStats(
+        stats: TanksMetaStats,
+        kills: Map<String, Int>,
+        powerUps: Map<String, Int>,
+        playerLevel: Int
+    ) = stats.plusKills(kills).plusPowerUps(powerUps)
+        .let { it.copy(bestPlayerLevel = maxOf(it.bestPlayerLevel, playerLevel)) }
 
     fun submitScore(score: Int, stage: Int): TanksMetaSave = mutate { current ->
         current.copy(

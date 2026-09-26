@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">Wird geladen…</string>
     <string name="tanks_stage">Level %1$d</string>
     <string name="tanks_score">Punkte: %1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">Endlos</string>
     <string name="leaderboard_wave_row">Welle %1$d</string>
     <string name="leaderboard_portal_note">Endlos-Läufe gehen auch an die Bestenliste des Portals.</string>
+    <string name="menu_coop_needs_keyboard">Zwei Spieler teilen sich eine Tastatur. Schließe eine an, um im Koop zu spielen.</string>
+    <string name="pause_exit_title">Lauf verlassen?</string>
+    <string name="pause_exit_question">Der laufende Versuch geht verloren, samt Punkten und Upgrades. Bereits geschaffte Level bleiben freigeschaltet.</string>
+    <string name="pause_exit_confirm">Verlassen</string>
+    <string name="resurrection_offer">Sieh dir eine Anzeige an, um deinen Panzer mit einem Leben wiederzubeleben und diesen Versuch fortzusetzen.</string>
+    <string name="resurrection_offer_coop">Sieh dir eine Anzeige an, um Spieler 1 mit einem Leben wiederzubeleben und diesen Versuch fortzusetzen.</string>
+    <string name="resurrection_watch">Anzeige ansehen · +1 Leben</string>
+    <string name="resurrection_watching">Anzeige läuft…</string>
+    <string name="resurrection_loading">Anzeige wird geladen…</string>
+    <string name="resurrection_unavailable">Anzeige nicht verfügbar. Du kannst erneut spielen oder zum Menü zurückkehren.</string>
+    <string name="resurrection_not_earned">Keine Belohnung erhalten. Sieh dir die Anzeige an, um ein Leben zu erhalten.</string>
+    <string name="resurrection_failed">Anzeige konnte nicht gezeigt werden. Versuche es später erneut.</string>
+    <string name="ads_privacy_options">Datenschutzeinstellungen für Werbung</string>
+    <string name="ads_privacy_failed">Datenschutzeinstellungen konnten nicht geöffnet werden. Versuche es erneut.</string>
+    <string name="ads_age_title">Dein Alter</string>
+    <string name="ads_age_prompt">Gib dein Alter in vollendeten Jahren an.</string>
+    <string name="ads_age_label">Alter in Jahren</string>
+    <string name="ads_age_invalid">Gib eine ganze Zahl von 0 bis 130 ein.</string>
+    <string name="ads_age_continue">Weiter</string>
+    <string name="ads_age_skip">Überspringen</string>
 </resources>

@@ -7,6 +7,9 @@ import com.aectann.battlecity.engine.BattleCityPowerUpType
 import com.aectann.battlecity.engine.BattleCityTankRenderState
 import com.aectann.battlecity.engine.BattleCityTileSnapshot
 import com.aectann.battlecity.engine.battleCityPlayerId
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -94,11 +97,21 @@ class TanksAssets private constructor(
 
         @OptIn(ExperimentalResourceApi::class)
         private suspend fun decodeAll(): TanksAssets {
+            // Every sprite is its own file, and on the web its own request. Read one after
+            // another, ninety of them kept a portal player on the loading panel for ten seconds
+            // at an ordinary CDN round trip — with the run already going underneath.
+            val loaded = coroutineScope {
+                spritePaths().map { (key, path) ->
+                    async {
+                        val image = runCatching { Res.readBytes(path).decodeToImageBitmap() }.getOrNull()
+                        Triple(key, path, image)
+                    }
+                }.awaitAll()
+            }
+
             val decoded = mutableMapOf<String, ImageBitmap>()
             val missing = mutableListOf<String>()
-
-            spritePaths().forEach { (key, path) ->
-                val image = runCatching { Res.readBytes(path).decodeToImageBitmap() }.getOrNull()
+            loaded.forEach { (key, path, image) ->
                 if (image == null) missing.add(path) else decoded[key] = image
             }
 

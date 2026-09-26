@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">불러오는 중…</string>
     <string name="tanks_stage">스테이지 %1$d</string>
     <string name="tanks_score">점수: %1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">엔드리스</string>
     <string name="leaderboard_wave_row">웨이브 %1$d</string>
     <string name="leaderboard_portal_note">엔드리스 기록은 포털 순위표에도 전송됩니다.</string>
+    <string name="menu_coop_needs_keyboard">2인 플레이는 키보드 하나를 함께 씁니다. 키보드를 연결하세요.</string>
+    <string name="pause_exit_title">플레이를 종료할까요?</string>
+    <string name="pause_exit_question">진행 중인 플레이는 점수와 업그레이드까지 사라집니다. 이미 클리어한 스테이지는 그대로 열려 있습니다.</string>
+    <string name="pause_exit_confirm">종료</string>
+    <string name="resurrection_offer">광고를 보고 전차를 생명 1개로 부활시켜 이번 플레이를 계속하세요.</string>
+    <string name="resurrection_offer_coop">광고를 보고 플레이어 1을 생명 1개로 부활시켜 이번 플레이를 계속하세요.</string>
+    <string name="resurrection_watch">광고 보기 · 생명 +1</string>
+    <string name="resurrection_watching">광고 시청 중…</string>
+    <string name="resurrection_loading">광고 로딩 중…</string>
+    <string name="resurrection_unavailable">광고를 이용할 수 없습니다. 다시 플레이하거나 메뉴로 돌아갈 수 있습니다.</string>
+    <string name="resurrection_not_earned">보상을 받지 못했습니다. 생명 1개를 받으려면 광고를 시청하세요.</string>
+    <string name="resurrection_failed">광고를 표시하지 못했습니다. 나중에 다시 시도하세요.</string>
+    <string name="ads_privacy_options">광고 개인정보 설정</string>
+    <string name="ads_privacy_failed">개인정보 설정을 열지 못했습니다. 다시 시도하세요.</string>
+    <string name="ads_age_title">나이</string>
+    <string name="ads_age_prompt">만 나이를 입력하세요.</string>
+    <string name="ads_age_label">나이(세)</string>
+    <string name="ads_age_invalid">0부터 130까지의 정수를 입력하세요.</string>
+    <string name="ads_age_continue">계속</string>
+    <string name="ads_age_skip">건너뛰기</string>
 </resources>

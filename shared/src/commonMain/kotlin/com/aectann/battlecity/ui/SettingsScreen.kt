@@ -1,6 +1,8 @@
 package com.aectann.battlecity.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,13 +31,17 @@ fun SettingsScreen(
     soundEnabled: Boolean,
     onSoundToggled: (Boolean) -> Unit,
     onResetProgress: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    privacyOptionsRequired: Boolean = false,
+    privacyOptionsBusy: Boolean = false,
+    privacyOptionsFailed: Boolean = false,
+    onPrivacyOptions: () -> Unit = {}
 ) {
     var showResetConfirm by remember { mutableStateOf(false) }
     var resetDone by remember { mutableStateOf(false) }
 
     SubScreenScaffold(title = stringResource(TanksStrings.settingsTitle), onBack = onBack) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -46,6 +52,18 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(28.dp))
+
+            if (privacyOptionsRequired) {
+                OutlinedButton(
+                    onClick = onPrivacyOptions,
+                    enabled = !privacyOptionsBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(stringResource(TanksStrings.adsPrivacyOptions)) }
+                if (privacyOptionsFailed) {
+                    Text(stringResource(TanksStrings.adsPrivacyFailed), color = Color.White)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             OutlinedButton(
                 onClick = { showResetConfirm = true },

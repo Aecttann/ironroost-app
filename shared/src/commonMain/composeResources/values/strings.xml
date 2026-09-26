@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">Loading…</string>
     <string name="tanks_stage">Stage %1$d</string>
     <string name="tanks_score">Score: %1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">Endless</string>
     <string name="leaderboard_wave_row">Wave %1$d</string>
     <string name="leaderboard_portal_note">Endless runs are also sent to the portal leaderboard.</string>
+    <string name="menu_coop_needs_keyboard">Two players share one keyboard. Connect one to play co-op.</string>
+    <string name="pause_exit_title">Leave the run?</string>
+    <string name="pause_exit_question">The run in progress is lost, including its score and any upgrades. Stages you have already cleared stay unlocked.</string>
+    <string name="pause_exit_confirm">Leave</string>
+    <string name="resurrection_offer">Watch an ad to revive your tank with one life and continue this run.</string>
+    <string name="resurrection_offer_coop">Watch an ad to revive player 1 with one life and continue this run.</string>
+    <string name="resurrection_watch">Watch ad · +1 life</string>
+    <string name="resurrection_watching">Watching ad…</string>
+    <string name="resurrection_loading">Loading ad…</string>
+    <string name="resurrection_unavailable">Ad unavailable. You can play again or return to the menu.</string>
+    <string name="resurrection_not_earned">No reward earned. Watch the ad to earn one life.</string>
+    <string name="resurrection_failed">Could not show the ad. Please try again later.</string>
+    <string name="ads_privacy_options">Ad privacy settings</string>
+    <string name="ads_privacy_failed">Could not open privacy settings. Please try again.</string>
+    <string name="ads_age_title">Your age</string>
+    <string name="ads_age_prompt">Enter your age in completed years.</string>
+    <string name="ads_age_label">Age in years</string>
+    <string name="ads_age_invalid">Enter a whole number from 0 to 130.</string>
+    <string name="ads_age_continue">Continue</string>
+    <string name="ads_age_skip">Skip</string>
 </resources>

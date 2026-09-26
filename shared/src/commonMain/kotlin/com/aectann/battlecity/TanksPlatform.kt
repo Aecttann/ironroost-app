@@ -77,6 +77,31 @@ interface TanksPlatform {
 
     /** Hides system chrome so the board gets the whole screen. */
     fun setImmersive(enabled: Boolean)
+
+    /**
+     * Whether this device has keys to play the second seat with.
+     *
+     * Local co-op is two tanks on one keyboard: the on-screen pad only ever drives player one,
+     * because two joysticks on one phone screen is not a control scheme. So on a device with no
+     * keyboard the second seat cannot be driven at all, and offering it there hands the player a
+     * tank that spawns, draws the enemies onto itself and burns three lives doing nothing.
+     *
+     * Deliberately has no default: a new platform must answer rather than inherit an assumption
+     * that would either hide the mode or ship the broken one.
+     */
+    val hasPhysicalKeyboard: Boolean
+
+    /**
+     * Whether to draw the on-screen joystick and fire button.
+     *
+     * They are the only way to play by touch and dead weight without it: a mouse can technically
+     * drag the stick, but nobody does, and on a desktop they cost the board a third of the window
+     * to duplicate keys the player already has.
+     *
+     * The pause button is deliberately not covered by this — see `TanksActionPanel`. It is the
+     * only visible way to pause on any device, so it stays.
+     */
+    val usesTouchControls: Boolean
 }
 
 @Composable

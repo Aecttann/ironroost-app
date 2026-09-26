@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Steel Eagle</string>
+    <string name="app_name">Ironroost</string>
     <string name="tanks_loading">Yükleniyor…</string>
     <string name="tanks_stage">Bölüm %1$d</string>
     <string name="tanks_score">Puan: %1$d</string>
@@ -110,4 +110,24 @@
     <string name="leaderboard_tab_endless">Sonsuz</string>
     <string name="leaderboard_wave_row">Dalga %1$d</string>
     <string name="leaderboard_portal_note">Sonsuz koşular portal sıralamasına da gönderilir.</string>
+    <string name="menu_coop_needs_keyboard">İki oyuncu tek klavyeyi paylaşır. Ortak oynamak için bir klavye bağlayın.</string>
+    <string name="pause_exit_title">Koşudan çıkılsın mı?</string>
+    <string name="pause_exit_question">Süren koşu, puanı ve yükseltmeleri ile birlikte kaybedilir. Tamamladığınız bölümler açık kalır.</string>
+    <string name="pause_exit_confirm">Çık</string>
+    <string name="resurrection_offer">Bir reklam izleyerek tankını bir canla dirilt ve bu oyuna devam et.</string>
+    <string name="resurrection_offer_coop">Bir reklam izleyerek 1. oyuncuyu bir canla dirilt ve bu oyuna devam et.</string>
+    <string name="resurrection_watch">Reklam izle · +1 can</string>
+    <string name="resurrection_watching">Reklam izleniyor…</string>
+    <string name="resurrection_loading">Reklam yükleniyor…</string>
+    <string name="resurrection_unavailable">Reklam kullanılamıyor. Yeniden oynayabilir veya menüye dönebilirsin.</string>
+    <string name="resurrection_not_earned">Ödül kazanılmadı. Bir can kazanmak için reklamı izle.</string>
+    <string name="resurrection_failed">Reklam gösterilemedi. Lütfen daha sonra tekrar dene.</string>
+    <string name="ads_privacy_options">Reklam gizlilik ayarları</string>
+    <string name="ads_privacy_failed">Gizlilik ayarları açılamadı. Lütfen tekrar dene.</string>
+    <string name="ads_age_title">Yaşın</string>
+    <string name="ads_age_prompt">Tamamladığın yıl olarak yaşını gir.</string>
+    <string name="ads_age_label">Yaş (yıl)</string>
+    <string name="ads_age_invalid">0 ile 130 arasında bir tam sayı gir.</string>
+    <string name="ads_age_continue">Devam</string>
+    <string name="ads_age_skip">Atla</string>
 </resources>

@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.view.WindowManager
@@ -39,6 +41,21 @@ private class AndroidTanksPlatform(private val context: Context) : TanksPlatform
         clips: Map<TanksClip, ByteArray>,
         enabled: Boolean
     ): TanksSoundPlayer = AndroidSoundPlayer(context.applicationContext, clips, enabled)
+
+    /**
+     * Read per call rather than cached: a keyboard can be plugged into a tablet, or folded away
+     * on a device that has one built in, long after the platform object was created.
+     */
+    override val hasPhysicalKeyboard: Boolean
+        get() {
+            val configuration = context.resources.configuration
+            return configuration.keyboard != Configuration.KEYBOARD_NOKEYS &&
+                configuration.hardKeyboardHidden != Configuration.HARDKEYBOARDHIDDEN_YES
+        }
+
+    /** False on the few Android devices without a touchscreen at all, such as Android TV. */
+    override val usesTouchControls: Boolean =
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
     override fun setKeepAwake(enabled: Boolean) {
         val window = context.findActivity()?.window ?: return

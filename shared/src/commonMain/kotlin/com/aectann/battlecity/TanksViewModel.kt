@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.aectann.battlecity.engine.BattleCityEngine
 import com.aectann.battlecity.engine.BattleCityInput
 import com.aectann.battlecity.engine.BattleCityInputs
+import com.aectann.battlecity.engine.BattleCityLevelData
 import com.aectann.battlecity.engine.BattleCityMaxStage
 import com.aectann.battlecity.engine.BattleCityRenderState
 import com.aectann.battlecity.engine.BattleCitySoundEvent
@@ -21,6 +22,7 @@ import com.aectann.battlecity.engine.TanksMetaStats
 import com.aectann.battlecity.engine.TanksUpgrade
 import com.aectann.battlecity.engine.TanksUpgradeLoadout
 import com.aectann.battlecity.engine.TanksWallet
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -101,7 +103,10 @@ data class TanksSession(
      * What the pick screen is offering. Empty while playing, and also empty at a wave rollover
      * once every upgrade is maxed — the picker is skipped rather than shown with no cards.
      */
-    val upgradeChoices: List<TanksUpgrade> = emptyList()
+    val upgradeChoices: List<TanksUpgrade> = emptyList(),
+    val canResurrect: Boolean = false,
+    val resurrectionInProgress: Boolean = false,
+    val resurrectionResult: ResurrectionAdResult? = null
 ) {
     val playerCount: Int get() = carriedLives.size
     val isCoop: Boolean get() = playerCount > 1
@@ -149,7 +154,10 @@ class TanksViewModel(
     private val portal: TanksPortal = NoopTanksPortal,
     private val allStagesUnlocked: Boolean = false,
     private val attemptCost: Int = 0,
-    private val seedProvider: () -> Long = { Random.nextLong() }
+    private val seedProvider: () -> Long = { Random.nextLong() },
+    private val resurrectionEnabled: Boolean = false,
+    private val levelLoader: suspend (Int) -> BattleCityLevelData = TanksResources::loadLevel,
+    private val stageInfosLoader: suspend () -> Map<Int, BattleCityStageInfo> = TanksResources::loadStageInfos
 ) : ViewModel() {
 
     private val _session = MutableStateFlow(
@@ -172,6 +180,7 @@ class TanksViewModel(
     private var engine: BattleCityEngine? = null
     private var loadGeneration = 0
     private var retryConsumesDailyBonus = false
+    private var pendingLoss: BattleCityRenderState? = null
 
     init {
         // Record today even without a claim, so a later clock rollback is detectable.
@@ -179,7 +188,7 @@ class TanksViewModel(
         refreshMeta()
         loadStage(_session.value.stage, resetCampaign = true)
         viewModelScope.launch {
-            val infos = TanksResources.loadStageInfos()
+            val infos = stageInfosLoader()
             _session.value = _session.value.copy(stageInfos = infos)
         }
     }
@@ -193,6 +202,7 @@ class TanksViewModel(
         mode: TanksRunMode = _session.value.mode,
         consumeDailyBonus: Boolean = false
     ) {
+        finishLostRun()
         val request = ++loadGeneration
         val previous = _session.value
         val players = if (playerCount > 0) playerCount else previous.playerCount
@@ -205,6 +215,9 @@ class TanksViewModel(
             phase = TanksPhase.Loading,
             summary = null,
             errorMessage = null,
+            canResurrect = false,
+            resurrectionInProgress = false,
+            resurrectionResult = null,
             wave = 1,
             loadout = TanksUpgradeLoadout(),
             upgradeChoices = emptyList(),
@@ -223,7 +236,7 @@ class TanksViewModel(
         )
 
         viewModelScope.launch {
-            val loaded = runCatching { TanksResources.loadLevel(stage) }
+            val loaded = runCatching { levelLoader(stage) }
             loaded.onSuccess { level ->
                 if (request != loadGeneration) return@onSuccess
                 val current = _session.value
@@ -346,7 +359,8 @@ class TanksViewModel(
      */
     fun retryAfterLoss() {
         val current = _session.value
-        if (current.phase != TanksPhase.GameOver) return
+        if (current.phase != TanksPhase.GameOver || current.resurrectionInProgress) return
+        finishLostRun()
         if (!wallet.spend(attemptCost)) {
             _messages.tryEmit(TanksMessage.NotEnoughTokens)
             return
@@ -482,26 +496,83 @@ class TanksViewModel(
         val current = _session.value
         if (current.phase != TanksPhase.Playing) return
 
-        metaRepository.recordRunLost(
+        pendingLoss = state
+        metaRepository.prepareRunLoss(
             kills = state.killsByType,
             powerUps = state.powerUpsCollected,
-            playerLevel = state.playerLevel
+            playerLevel = state.playerLevel,
+            score = if (current.isEndless) state.stageScore else current.campaignScore + state.stageScore,
+            stageOrWave = if (current.isEndless) state.wave else state.stageNumber,
+            endless = current.isEndless
         )
-        if (current.isEndless) {
-            submitEndlessRun(score = state.stageScore, wave = state.wave)
-        } else {
-            submitRun(
-                score = current.campaignScore + state.stageScore,
-                stage = state.stageNumber
-            )
-        }
-
+        val canResurrect = resurrectionEnabled && engine?.canResurrect == true
         _session.value = current.copy(
             phase = TanksPhase.GameOver,
             charged = false,
             wave = state.wave,
-            loadout = state.loadout
+            loadout = state.loadout,
+            canResurrect = canResurrect,
+            resurrectionResult = null
         )
+        if (!canResurrect) finishLostRun()
+    }
+
+    /** Commits a declined loss once, before leaving or replacing the run. */
+    fun finishLostRun() {
+        if (pendingLoss == null) return
+        pendingLoss = null
+        val current = _session.value
+        _session.value = current.copy(canResurrect = false)
+        val loss = metaRepository.finishPendingLoss()
+        if (loss?.endless == true) portal.submitScore(loss.entry.score)
+        refreshMeta()
+    }
+
+    fun resurrectWithAd(ads: TanksAds) {
+        val current = _session.value
+        val running = engine ?: return
+        val loss = pendingLoss ?: return
+        if (current.phase != TanksPhase.GameOver || !current.canResurrect ||
+            current.resurrectionInProgress || !ads.supportsResurrection) return
+
+        _session.value = current.copy(resurrectionInProgress = true, resurrectionResult = null)
+        viewModelScope.launch {
+            try {
+                val result = try {
+                    ads.showResurrection()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    ResurrectionAdResult.Failed
+                }
+                // A reward belongs only to the engine and loss that initiated the request.
+                if (engine !== running || pendingLoss !== loss) return@launch
+                val restored = if (result == ResurrectionAdResult.Earned) running.resurrect() else null
+                if (restored != null) {
+                    metaRepository.discardPendingLoss()
+                    pendingLoss = null
+                    _render.value = restored
+                    _session.value = _session.value.copy(
+                        phase = TanksPhase.Paused,
+                        charged = true,
+                        carriedLives = restored.players.map { it.lives },
+                        canResurrect = false,
+                        resurrectionResult = null
+                    )
+                } else {
+                    _session.value = _session.value.copy(resurrectionResult = result)
+                }
+            } finally {
+                if (engine === running) {
+                    _session.value = _session.value.copy(resurrectionInProgress = false)
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        finishLostRun()
+        super.onCleared()
     }
 
     /**
@@ -509,23 +580,10 @@ class TanksViewModel(
      *
      * It deliberately does not reach the host's board: that board is one list, and a campaign
      * score capped by 35 stages ranked against an uncapped endless score would make both
-     * meaningless. Endless is what the portal gets — see [submitEndlessRun].
+     * meaningless. Endless is what the portal gets through [finishLostRun].
      */
     private fun submitRun(score: Int, stage: Int) {
         metaRepository.submitScore(score = score, stage = stage)
-        refreshMeta()
-    }
-
-    /**
-     * Endless runs go to their own table, and they are the ones the portal board gets.
-     *
-     * A campaign score is capped by 35 stages, so ranking it says more about how far someone got
-     * than how well they played. An endless score has no ceiling and every run is on the same
-     * arena, which is the only comparison worth putting on a public board.
-     */
-    private fun submitEndlessRun(score: Int, wave: Int) {
-        metaRepository.submitEndlessScore(score = score, wave = wave)
-        portal.submitScore(score)
         refreshMeta()
     }
 

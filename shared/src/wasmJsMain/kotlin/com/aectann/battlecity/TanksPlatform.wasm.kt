@@ -34,6 +34,17 @@ private class BrowserTanksPlatform : TanksPlatform {
 
     // CrazyGames owns the iframe/fullscreen chrome. The game only adapts to its viewport.
     override fun setImmersive(enabled: Boolean) = Unit
+
+    /**
+     * Read per call, not cached: the bridge upgrades its answer the first time a real key is
+     * pressed, so a keyboard its media query missed still turns co-op back on.
+     */
+    override val hasPhysicalKeyboard: Boolean
+        get() = browserHasPhysicalKeyboard()
+
+    /** Also read per call: the bridge turns this on as soon as a finger touches the page. */
+    override val usesTouchControls: Boolean
+        get() = browserUsesTouchControls()
 }
 
 private class BrowserKeyValueStore : TanksKeyValueStore {
@@ -114,61 +125,71 @@ private class BrowserTanksSoundPlayer(
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
 private fun browserAppVersion(): String =
-    js("globalThis.steelEaglePortal?.appVersion ?? '1.0.0'")
+    js("globalThis.ironroostPortal?.appVersion ?? '1.0.0'")
 
 private fun browserStorageGet(key: String): String? =
-    js("globalThis.steelEaglePortal?.storageGet(key) ?? null")
+    js("globalThis.ironroostPortal?.storageGet(key) ?? null")
 
 private fun browserStorageSet(key: String, value: String) {
-    js("globalThis.steelEaglePortal?.storageSet(key, value)")
+    js("globalThis.ironroostPortal?.storageSet(key, value)")
 }
 
 private fun browserSetGameplayActive(active: Boolean) {
-    js("active ? globalThis.steelEaglePortal?.gameplayStart() : globalThis.steelEaglePortal?.gameplayStop()")
+    js("active ? globalThis.ironroostPortal?.gameplayStart() : globalThis.ironroostPortal?.gameplayStop()")
 }
 
 private fun browserSetStage(stage: Int) {
-    js("globalThis.steelEaglePortal?.setGameContext(stage)")
+    js("globalThis.ironroostPortal?.setGameContext(stage)")
 }
 
 private fun browserReportProgress(completedStage: Int, totalStages: Int) {
-    js("globalThis.steelEaglePortal?.reportProgress(completedStage, totalStages)")
+    js("globalThis.ironroostPortal?.reportProgress(completedStage, totalStages)")
 }
 
 private fun browserClearGameContext() {
-    js("globalThis.steelEaglePortal?.clearGameContext()")
+    js("globalThis.ironroostPortal?.clearGameContext()")
 }
 
 private fun browserSubmitScore(score: Int) {
-    js("globalThis.steelEaglePortal?.submitScore(score)")
+    js("globalThis.ironroostPortal?.submitScore(score)")
 }
 
 private fun browserHasLeaderboard(): Boolean =
-    js("globalThis.steelEaglePortal?.isLeaderboardAvailable === true")
+    js("globalThis.ironroostPortal?.isLeaderboardAvailable === true")
+
+// Defaults to true when the bridge is missing: without it there is no evidence either way, and
+// a standalone build outside a portal is a desktop page far more often than not.
+private fun browserHasPhysicalKeyboard(): Boolean =
+    js("globalThis.ironroostPortal?.hasPhysicalKeyboard !== false")
+
+// Defaults to true without the bridge: a page with no controls at all is unplayable by touch,
+// whereas a desktop that draws them anyway is merely untidy.
+private fun browserUsesTouchControls(): Boolean =
+    js("globalThis.ironroostPortal?.usesTouchControls !== false")
 
 private fun browserAudioLoad(name: String, base64: String) {
-    js("globalThis.steelEaglePortal?.audioLoad(name, base64)")
+    js("globalThis.ironroostPortal?.audioLoad(name, base64)")
 }
 
 private fun browserAudioSetEnabled(enabled: Boolean) {
-    js("globalThis.steelEaglePortal?.audioSetEnabled(enabled)")
+    js("globalThis.ironroostPortal?.audioSetEnabled(enabled)")
 }
 
 private fun browserAudioPlay(name: String) {
-    js("globalThis.steelEaglePortal?.audioPlay(name)")
+    js("globalThis.ironroostPortal?.audioPlay(name)")
 }
 
 private fun browserAudioSetEngineRunning(running: Boolean) {
-    js("globalThis.steelEaglePortal?.audioSetEngineRunning(running)")
+    js("globalThis.ironroostPortal?.audioSetEngineRunning(running)")
 }
 
 private fun browserAudioRelease() {
-    js("globalThis.steelEaglePortal?.audioRelease()")
+    js("globalThis.ironroostPortal?.audioRelease()")
 }
 
 // Kotlin/Wasm js() interop returns a JS number, so the epoch arrives as a Double.
 private fun browserEpochMillis(): Double = js("Date.now()")
 
 private fun browserHideLoading() {
-    js("globalThis.steelEaglePortal?.hideLoading()")
+    js("globalThis.ironroostPortal?.hideLoading()")
 }
