@@ -25,3 +25,9 @@
 
 # Compose Multiplatform resources are looked up by path at runtime.
 -keep class battlecity.shared.generated.resources.** { *; }
+
+# Room 2.2.5 loads this WorkManager database through its no-arg constructor.
+# Its consumer rules retain the class but omit this constructor in R8 full mode.
+-keep class androidx.work.impl.WorkDatabase_Impl {
+    public <init>();
+}

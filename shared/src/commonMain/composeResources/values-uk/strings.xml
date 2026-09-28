@@ -128,6 +128,7 @@
     <string name="ads_age_prompt">Вкажіть ваш вік у повних роках.</string>
     <string name="ads_age_label">Вік у роках</string>
     <string name="ads_age_invalid">Вкажіть ціле число від 0 до 130.</string>
+    <string name="ads_age_save_failed">Не вдалося зберегти відповідь. Спробуйте ще раз.</string>
     <string name="ads_age_continue">Продовжити</string>
     <string name="ads_age_skip">Пропустити</string>
     <string name="resurrection_cooldown">Наступна спроба перегляду для воскресіння через %1$d с.</string>

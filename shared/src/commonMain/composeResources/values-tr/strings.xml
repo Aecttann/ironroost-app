@@ -128,6 +128,7 @@
     <string name="ads_age_prompt">Tamamladığın yıl olarak yaşını gir.</string>
     <string name="ads_age_label">Yaş (yıl)</string>
     <string name="ads_age_invalid">0 ile 130 arasında bir tam sayı gir.</string>
+    <string name="ads_age_save_failed">Yanıtın kaydedilemedi. Lütfen tekrar dene.</string>
     <string name="ads_age_continue">Devam</string>
     <string name="ads_age_skip">Atla</string>
     <string name="resurrection_cooldown">Dirilme reklamını %1$d sn. sonra tekrar deneyebilirsin.</string>

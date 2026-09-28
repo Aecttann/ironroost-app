@@ -128,6 +128,7 @@
     <string name="ads_age_prompt">请输入周岁年龄。</string>
     <string name="ads_age_label">年龄（岁）</string>
     <string name="ads_age_invalid">请输入0到130之间的整数。</string>
+    <string name="ads_age_save_failed">无法保存你的回答。请重试。</string>
     <string name="ads_age_continue">继续</string>
     <string name="ads_age_skip">跳过</string>
     <string name="resurrection_cooldown">可在 %1$d 秒后重试复活广告。</string>

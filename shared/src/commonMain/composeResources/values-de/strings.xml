@@ -128,6 +128,7 @@
     <string name="ads_age_prompt">Gib dein Alter in vollendeten Jahren an.</string>
     <string name="ads_age_label">Alter in Jahren</string>
     <string name="ads_age_invalid">Gib eine ganze Zahl von 0 bis 130 ein.</string>
+    <string name="ads_age_save_failed">Deine Antwort konnte nicht gespeichert werden. Bitte versuche es erneut.</string>
     <string name="ads_age_continue">Weiter</string>
     <string name="ads_age_skip">Überspringen</string>
     <string name="resurrection_cooldown">Nächster Versuch einer Wiederbelebungsanzeige in %1$d Sek.</string>

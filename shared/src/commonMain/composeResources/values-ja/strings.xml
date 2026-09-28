@@ -128,6 +128,7 @@
     <string name="ads_age_prompt">満年齢を入力してください。</string>
     <string name="ads_age_label">年齢（歳）</string>
     <string name="ads_age_invalid">0から130までの整数を入力してください。</string>
+    <string name="ads_age_save_failed">回答を保存できませんでした。もう一度お試しください。</string>
     <string name="ads_age_continue">続ける</string>
     <string name="ads_age_skip">スキップ</string>
     <string name="resurrection_cooldown">復活用の広告は %1$d 秒後に再試行できます。</string>

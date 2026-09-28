@@ -13,6 +13,7 @@ import battlecity.shared.generated.resources.ads_age_title
 import battlecity.shared.generated.resources.ads_age_prompt
 import battlecity.shared.generated.resources.ads_age_label
 import battlecity.shared.generated.resources.ads_age_invalid
+import battlecity.shared.generated.resources.ads_age_save_failed
 import battlecity.shared.generated.resources.ads_age_continue
 import battlecity.shared.generated.resources.ads_age_skip
 import battlecity.shared.generated.resources.resurrection_offer
@@ -159,6 +160,7 @@ object TanksStrings {
     val adsAgePrompt = Res.string.ads_age_prompt
     val adsAgeLabel = Res.string.ads_age_label
     val adsAgeInvalid = Res.string.ads_age_invalid
+    val adsAgeSaveFailed = Res.string.ads_age_save_failed
     val adsAgeContinue = Res.string.ads_age_continue
     val adsAgeSkip = Res.string.ads_age_skip
     val resurrectionOffer = Res.string.resurrection_offer

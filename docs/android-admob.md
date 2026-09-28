@@ -58,11 +58,20 @@ one-hour expiration. Loading stops while the Activity is not resumed and recover
 
 ## Consent and account setup
 
-The audience includes children. Android presents a neutral, empty age field before creating
-the ad controller. No ad SDK initialization or UMP request starts from app code until an age
-is submitted or skipped. A ViewModel retains only the treatment group across Activity
-recreation; a fresh task/process asks again. No age is written to preferences or sent to AdMob.
-The text field uses temporary UI state restoration until submission.
+The audience includes children. On the first launch, Android presents a neutral, empty age
+field before creating the ad controller. The screen uses a themed Surface to supply readable
+content colors. No ad SDK initialization or UMP request starts from app code until the stored
+audience is read or a new selection is persisted successfully.
+
+Only the treatment group (`adult` or `protected`) is saved, using an atomic file in Android's
+private `noBackupFilesDir`. The exact age is not persisted or sent to AdMob. The first saved
+group is reused after Activity recreation, process death, and cold starts, and cannot be
+changed through the UI. Skipping saves protected treatment. Malformed or unreadable storage
+receives protected treatment; a failed write keeps the age screen open for retry without
+starting ads. The file is separate from game progress and is excluded from OS backup and
+device transfer. Resetting game progress does not clear it. Clearing app storage or
+uninstalling the app removes it and requires a new selection. The text field uses temporary
+UI state restoration until submission.
 
 The conservative treatment is:
 
@@ -75,6 +84,15 @@ All minors, including teens, receive the strongest child treatment. This intenti
 single conservative cutoff rather than assuming country-specific consent ages. The screen
 does not expose advertising benefits, preselect an age, or encourage an adult answer. Game
 features remain the same for both groups; actual ad fill can differ.
+
+The mixed-audience Android app retains the SDK's `AD_ID` permission for adults. For minors
+and unknown ages, `CHILD` is set before Mobile Ads initialization and ad requests. Google
+documents this as equivalent to child-directed treatment, which prevents AAID transmission.
+Permission presence alone does not mean AAID is sent for protected requests. Production
+network behavior still requires verification with a registered test device.
+
+Compose UI tooling is a debug-only dependency of the Android app. The shared Android
+runtime does not include it, so `PreviewActivity` must be absent from the release manifest.
 
 UMP updates consent information for each Activity launch after the age screen, before ads are initialized/requested.
 The Settings page exposes the privacy-options form whenever UMP requires it. Changing privacy
@@ -159,10 +177,12 @@ The following checks require a device and are not replaced by compilation:
   `androidApp/build.gradle.kts`, `androidApp/src/main/AndroidManifest.xml`.
 - Android ownership, audience state, consent, cache, presentation, and banner lifecycle:
   `androidApp/src/main/kotlin/com/aectann/battlecity/MainActivity.kt`,
+  `androidApp/src/main/kotlin/com/aectann/battlecity/ads/{AdAudienceViewModel,AndroidAdAudienceStorage}.kt`,
   `androidApp/src/main/kotlin/com/aectann/battlecity/ads/AdMobController.kt`,
   `androidApp/src/main/kotlin/com/aectann/battlecity/ads/MenuBanner.kt`.
 - Shared platform contract and UI wiring:
   `shared/src/commonMain/kotlin/com/aectann/battlecity/TanksAds.kt`,
+  `shared/src/commonMain/kotlin/com/aectann/battlecity/TanksAdAudienceRepository.kt`,
   `shared/src/commonMain/kotlin/com/aectann/battlecity/TanksAdFrequencyStore.kt`,
   `shared/src/commonMain/kotlin/com/aectann/battlecity/App.kt`, and
   `shared/src/commonMain/kotlin/com/aectann/battlecity/ui/{AdsAgeScreen,MenuScreen,MetaScreens,SettingsScreen,TanksGameScreen}.kt`.
@@ -173,11 +193,11 @@ The following checks require a device and are not replaced by compilation:
   and all eight `shared/src/commonMain/composeResources/values*/strings.xml` locales.
 - Test dependency: `shared/build.gradle.kts`. New tests:
   `engine/src/commonTest/kotlin/com/aectann/battlecity/engine/BattleCityResurrectionTest.kt`,
-  `shared/src/commonTest/kotlin/com/aectann/battlecity/{TanksResurrectionTest,TanksAdAudienceTest}.kt`.
+  `shared/src/commonTest/kotlin/com/aectann/battlecity/{TanksResurrectionTest,TanksAdAudienceTest,TanksAdAudienceRepositoryTest}.kt`.
   Freeze coverage: `engine/src/commonTest/kotlin/com/aectann/battlecity/engine/TanksStreakFreezeTest.kt`
   and `shared/src/commonTest/kotlin/com/aectann/battlecity/{TanksStreakFreezeViewModelTest,TanksAdFrequencyStoreTest}.kt`.
 
-## Automated validation
+## Original integration validation
 
 On 2026-09-27, the following Gradle tasks completed successfully on Windows:
 
@@ -202,6 +222,71 @@ On 2026-09-27, the following Gradle tasks completed successfully on Windows:
 These checks do not verify SDK presentation, production consent configuration, or device
 UI/UX/motion/timing. The device checklist above remains outstanding. No emulator was created
 or started. iOS compilation was not performed on Windows.
+
+## Persistent audience validation (2026-09-27)
+
+After the audience persistence and preview dependency changes:
+
+- `:shared:testAndroidHostTest :androidApp:assembleDebug --no-configuration-cache --no-daemon`
+  passed: 53 shared tests, zero failures, errors, or skips. Seven repository tests cover
+  persistence, immutable selection, skipped age, malformed storage, concurrent selection,
+  and failed-write retry; the two existing audience boundary tests also pass.
+- Physical Nokia C32 checks covered readable title/prompt, empty and out-of-range input,
+  rejection of nonnumeric input, retained input/error after portrait/landscape rotation,
+  minor/adult selection, Skip, cold process restarts, and background/foreground return.
+  Only `adult` or `protected` was written; restarts opened the menu without an age prompt.
+- Blocking the atomic file's temporary path forced a real write failure. The age screen
+  remained open with a readable retry message, no confirmed group was written, and removing
+  the obstruction allowed the same selection to succeed. An invalid stored value opened
+  the game without exposing a new age choice; repository tests verify protected treatment.
+- Menu, campaign entry, and returning to the menu remained usable. These are smoke checks,
+  not a full gameplay or rewarded-ad regression pass. Debug ad units were used.
+- Published privacy policy version 1.1 describes this behavior in English and Ukrainian.
+  The GitHub Pages build/deployment passed and both public pages returned the updated text.
+
+The first physical check of the optimized release exposed an early WorkManager startup
+crash: R8 had removed `WorkDatabase_Impl`'s public no-argument constructor. AdMob brings
+WorkManager 2.7.0 and Room 2.2.5 transitively; the latter's consumer rule keeps database
+classes without explicitly keeping the constructor used by Room's reflective factory.
+`androidApp/proguard-rules.pro` now retains that specific class and constructor. Other
+library classes and release optimization settings are unchanged. See the
+[R8 full-mode reflection rules](https://r8.googlesource.com/r8/+/refs/heads/main/compatibility-faq.md).
+
+The rebuilt `:androidApp:assembleRelease :androidApp:bundleRelease` passed with R8,
+resource shrinking, and `lintVitalRelease` enabled. The constructor is retained in the
+resulting R8 output. The signed AAB passed `jarsigner` verification and `bundletool 1.18.3`
+validation. Its decoded manifest has package `com.aectann.battlecity`, version 1.0.0/code 1,
+the production AdMob application ID, no debuggable flag, and no `PreviewActivity`.
+The signing certificate SHA-256 matches the supplied keystore:
+`DE:79:F3:D8:74:F2:16:F3:EB:21:29:3E:9B:B9:F1:B5:8B:D1:57:1D:7D:21:CF:5C:D0:7E:3A:DE:9B:46:B2:98`.
+
+The exported artifact is `ironroost-1.0.0-1-fixed-signed.aab`; SHA-256:
+`5E6029F34326B97BA856310CBAE22ABD12E00CF001134B92B5C2CEC339B64E7E`.
+After reconnecting the Nokia, the corrected optimized release APK passed physical startup
+and persistence checks: the age screen opened without a WorkManager crash, and a later cold
+start opened the root menu without another age prompt. First-launch form text/control bounds
+match the original debug screen exactly. Cold launch took 2257 ms to the age form and 1328 ms
+to the menu with a persisted group; these are single smoke measurements, not benchmarks.
+The QA APK used the existing device app's debug certificate to preserve its data; the AAB
+uses the supplied release certificate. The debug app was restored after the release check
+so this development device uses Google's test ad units. No uninstall or app-storage reset
+was used; game progress remained in place.
+
+The production SDK logged UMP error 3: publisher misconfiguration, no forms configured for
+application ID `ca-app-pub-4014372145678923~7542987599`. Configure and publish the applicable
+consent messages in the AdMob account, then verify consent on a registered test device.
+The code keeps its consent gate; this account setup was not changed by the release fix.
+
+Intentional differences from the previous age flow are the readable content/system-bar
+colors, one persisted treatment group instead of a question on every cold start, a splash
+held while the group is read, and disabled controls/retry feedback while saving. The age
+form's layout, neutral wording, validation range, and Skip action are retained. No age-screen
+animation was introduced. Game motion/timing code was not changed.
+
+Production consent/account settings, Families ad presentation/dismiss controls, and actual
+AAID network traffic remain separate device/account checks. Source review confirms that
+child treatment is set before explicit SDK initialization; it does not constitute a packet
+capture. No Android emulator was created or used.
 
 ## References
 

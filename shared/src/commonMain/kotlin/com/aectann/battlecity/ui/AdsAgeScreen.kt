@@ -1,6 +1,5 @@
 package com.aectann.battlecity.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +31,11 @@ import com.aectann.battlecity.TanksStrings
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
-fun AdsAgeScreen(onAgeSelected: (Int?) -> Unit) {
+fun AdsAgeScreen(
+    onAgeSelected: (Int?) -> Unit,
+    isSaving: Boolean = false,
+    saveFailed: Boolean = false
+) {
     var enteredAge by rememberSaveable { mutableStateOf("") }
     var invalid by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -39,40 +43,46 @@ fun AdsAgeScreen(onAgeSelected: (Int?) -> Unit) {
         focusManager.clearFocus()
         onAgeSelected(it)
     }
-    Box(
-        Modifier.fillMaxSize().background(MenuBackground).safeContentPadding(),
-        contentAlignment = Alignment.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MenuBackground,
+        contentColor = MaterialTheme.colorScheme.onBackground
     ) {
-        Column(
-            Modifier.widthIn(max = 420.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(stringResource(TanksStrings.adsAgeTitle), style = MaterialTheme.typography.headlineMedium)
-            Text(stringResource(TanksStrings.adsAgePrompt))
-            OutlinedTextField(
-                value = enteredAge,
-                onValueChange = { value ->
-                    if (value.length <= 3 && value.all { it in '0'..'9' }) {
-                        enteredAge = value
-                        invalid = false
-                    }
-                },
-                label = { Text(stringResource(TanksStrings.adsAgeLabel)) },
-                singleLine = true,
-                isError = invalid,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (invalid) Text(stringResource(TanksStrings.adsAgeInvalid), color = MaterialTheme.colorScheme.error)
-            Button(
-                onClick = {
-                    val age = enteredAge.toIntOrNull()
-                    if (age == null || age !in 0..130) invalid = true else selectAge(age)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(stringResource(TanksStrings.adsAgeContinue)) }
-            OutlinedButton(onClick = { selectAge(null) }, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(TanksStrings.adsAgeSkip))
+        Box(Modifier.fillMaxSize().safeContentPadding(), contentAlignment = Alignment.Center) {
+            Column(
+                Modifier.widthIn(max = 420.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(stringResource(TanksStrings.adsAgeTitle), style = MaterialTheme.typography.headlineMedium)
+                Text(stringResource(TanksStrings.adsAgePrompt))
+                OutlinedTextField(
+                    value = enteredAge,
+                    onValueChange = { value ->
+                        if (value.length <= 3 && value.all { it in '0'..'9' }) {
+                            enteredAge = value
+                            invalid = false
+                        }
+                    },
+                    label = { Text(stringResource(TanksStrings.adsAgeLabel)) },
+                    singleLine = true,
+                    enabled = !isSaving,
+                    isError = invalid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (invalid) Text(stringResource(TanksStrings.adsAgeInvalid), color = MaterialTheme.colorScheme.onErrorContainer)
+                if (saveFailed) Text(stringResource(TanksStrings.adsAgeSaveFailed), color = MaterialTheme.colorScheme.onErrorContainer)
+                Button(
+                    onClick = {
+                        val age = enteredAge.toIntOrNull()
+                        if (age == null || age !in 0..130) invalid = true else selectAge(age)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                ) { Text(stringResource(TanksStrings.adsAgeContinue)) }
+                OutlinedButton(onClick = { selectAge(null) }, modifier = Modifier.fillMaxWidth(), enabled = !isSaving) {
+                    Text(stringResource(TanksStrings.adsAgeSkip))
+                }
             }
         }
     }
