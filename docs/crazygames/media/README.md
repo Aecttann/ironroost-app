@@ -86,6 +86,17 @@ Shots land in `docs/quality/screens/<label>/` and are committed; `compare` write
 `docs/quality/screens/<before>-vs-<after>/` (ignored by git, rebuilt on demand) and needs `ffmpeg`.
 `--formats` and `--views` take comma-separated subsets. Every format starts on a fresh profile.
 
+`tour <label>` visits the screens off the menu — daily reward, collection, records and the nickname
+dialog, settings and the reset question, about, the stage list from the pause menu — by keyboard:
+Tab walks the controls in the order they are built, Enter presses one. The routes are the `TOUR`
+table in the script; `--steps "run,pause,tab,shot:x"` tries an ad-hoc one while working out a new
+route. `--dist developmentExecutable` points either command at the development build, which
+`gradlew :webApp:wasmJsBrowserDevelopmentExecutableDistribution` produces in a few minutes instead of
+a quarter of an hour — good for checking a screen, not for the shots that get committed.
+
+The page's calendar reads 1 January 2026 from its first script on (`virtual-clock.js`), not only once
+the clock is held, so the daily reward is always on its first claimable day in these shots.
+
 ### Why it is built this way
 
 The first previews were grabbed in real time, and at 1080p the browser can encode about six

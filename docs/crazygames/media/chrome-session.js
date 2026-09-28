@@ -74,12 +74,13 @@ function connect(url) {
 /**
  * [dry] draws at 1x: a dry run keeps no frames, and the game's rules do not care how sharply
  * it is drawn, so a seed behaves the same at either scale. [scale] overrides the format's
- * density outright, for screenshots that should come out at the CSS size.
+ * density outright, for screenshots that should come out at the CSS size. [dist] picks the
+ * build: developmentExecutable builds in a fraction of the time, for checking a screen quickly.
  */
-async function launch({ format, port = 8130, debugPort = 9333, dry = false, scale }) {
+async function launch({ format, port = 8130, debugPort = 9333, dry = false, scale, dist = "productionExecutable" }) {
     const size = FORMATS[format];
     if (!size) throw new Error(`unknown format ${format}; expected ${Object.keys(FORMATS).join(" or ")}`);
-    const gameUrl = `http://localhost:${port}/webApp/build/dist/wasmJs/productionExecutable/index.html`;
+    const gameUrl = `http://localhost:${port}/webApp/build/dist/wasmJs/${dist}/index.html`;
 
     const chrome = spawn(findChrome(), [
         "--headless=new",
@@ -105,7 +106,10 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
         "--disable-features=CalculateNativeWinOcclusion",
         "--no-first-run",
         "--no-default-browser-check",
-        gameUrl
+        // Blank first: the game is only opened once virtual-clock.js is installed ahead of it.
+        // Opened straight away it ran a first time on the real clock, and saved today's date
+        // before the reload that put it on the held one.
+        "about:blank"
     ], { stdio: ["ignore", "ignore", "ignore"] });
 
     let client;
@@ -114,7 +118,7 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
         for (let attempt = 0; attempt < 100 && !socketUrl; attempt++) {
             try {
                 const targets = await fetch(`http://localhost:${debugPort}/json/list`).then(r => r.json());
-                socketUrl = targets.find(t => t.type === "page" && t.url.includes("productionExecutable"))
+                socketUrl = targets.find(t => t.type === "page")
                     ?.webSocketDebuggerUrl ?? null;
             } catch (_) { /* Chrome is still coming up. */ }
             if (!socketUrl) await sleep(300);
@@ -226,6 +230,7 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
     await client.send("Page.addScriptToEvaluateOnNewDocument", {
         source: fs.readFileSync(path.join(__dirname, "virtual-clock.js"), "utf8")
     });
+    await client.send("Page.navigate", { url: gameUrl });
     return session;
 }
 

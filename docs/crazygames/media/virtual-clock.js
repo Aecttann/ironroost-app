@@ -40,8 +40,15 @@
         dateNow: Date.now.bind(Date)
     };
 
+    // Where held time starts, so two sessions agree on the clock's reading as well as its rate.
+    const HELD_ORIGIN_MS = 1_000_000;
+    const HELD_EPOCH_MS = Date.UTC(2026, 0, 1);
+
     let now = real.performanceNow();
-    let epochOffset = real.dateNow() - now;
+    // The calendar is fixed from the first script on, not only once the clock is held. The game
+    // saves the day it last saw as the menu opens; had that been today's real date, the held
+    // clock would read as months behind it, and the daily reward would sit in "clock behind".
+    let epochOffset = HELD_EPOCH_MS - now;
     // Far above the browser's own ids, so a clear can tell which kind of timer it was handed.
     let nextId = 1_000_000_000;
     const timers = new Map();
@@ -126,10 +133,6 @@
         real.requestAnimationFrame(followWallClock);
     }
     real.requestAnimationFrame(followWallClock);
-
-    // Where held time starts, so two sessions agree on the clock's reading as well as its rate.
-    const HELD_ORIGIN_MS = 1_000_000;
-    const HELD_EPOCH_MS = Date.UTC(2026, 0, 1);
 
     window.__ironroostClock = {
         /**

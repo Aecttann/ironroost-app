@@ -10,6 +10,7 @@
  * player meets them:
  *
  *   menu         the first screen, a second after it settles
+ *   menu-keys    the same menu after two presses of the down arrow: the keyboard cursor
  *   stage-start  stage one opening, its card on screen
  *   gameplay     six seconds into the run, the player having moved and fired
  *   pause        the pause overlay over that same moment
@@ -17,6 +18,10 @@
  * The game runs on virtual-clock.js with its dice fixed by --seed, so the same build gives the
  * same pictures every time and a difference between two labels is a difference in the game.
  * Every format starts on a throwaway profile: a first visit, nothing saved.
+ *
+ * `tour` visits the screens off the menu by keyboard — daily reward, collection, records and
+ * the nickname dialog, settings and the reset question, about, the stage list — and saves each
+ * as <format>-<screen>.png under the same label. See TOUR.
  *
  * `compare` pairs up the views two labels share and writes one image per pair to
  * docs/quality/screens/<before>-vs-<after>/: landscape stacked, the tall formats side by side.
@@ -30,8 +35,9 @@ const { launch, FORMATS, FPS } = require("./chrome-session");
 
 const SCREENS = path.resolve(__dirname, "..", "..", "quality", "screens");
 
-const VIEWS = ["menu", "stage-start", "gameplay", "pause"];
+const VIEWS = ["menu", "menu-keys", "stage-start", "gameplay", "pause"];
 const MENU_SETTLE_FRAMES = FPS;
+const KEY_SETTLE_FRAMES = 6;
 // Half a second into the card, well inside the 3.6 s the first card of a visit holds.
 const STAGE_CARD_FRAMES = FPS / 2;
 const GAMEPLAY_FRAME = FPS * 6;
@@ -50,6 +56,22 @@ const GAMEPLAY_EVENTS = [
     { frame: 175, seat: "solo", dir: "up" },
     { frame: 215, seat: "solo", dir: null }
 ];
+
+/*
+ * Lets the game catch up after a key: [frames] frames, a few at a time, with a moment of wall
+ * time after each few.
+ *
+ * ironroostCapture.idle steps its frames in one unbroken chain of promises, and Compose resumes
+ * some coroutines — the one that hands a freshly opened overlay its focus, for one — through a
+ * zero-delay timer, which only runs once that chain lets go. Idle in one block and the next key
+ * lands before the overlay has taken focus; a real player's keys are never that fast.
+ */
+async function settle(session, frames) {
+    for (let done = 0; done < frames; done += 3) {
+        await session.evaluate(`ironroostCapture.idle(${Math.min(3, frames - done)})`);
+        await new Promise(resolve => setTimeout(resolve, 20));
+    }
+}
 
 const [command, ...rest] = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -71,7 +93,7 @@ async function shoot(label) {
         if (!FORMATS[format]) throw new Error(`unknown format ${format}`);
         // CSS size, one image pixel per layout pixel: what a 1280x720 player sees, not a
         // listing asset. Sharp enough to judge a layout and small enough to keep in the repo.
-        const session = await launch({ format, port, scale: 1 });
+        const session = await launch({ format, port, scale: 1, dist: option("--dist", "productionExecutable") });
         try {
             const save = async view => {
                 if (!views.includes(view)) return;
@@ -84,7 +106,18 @@ async function shoot(label) {
             await session.openMenu({ seed });
             await session.evaluate(`ironroostCapture.idle(${MENU_SETTLE_FRAMES})`);
             await save("menu");
-            if (views.every(view => view === "menu")) continue;
+            if (views.includes("menu-keys")) {
+                // The first arrow shows the cursor where focus already is; the second moves it.
+                for (let i = 0; i < 2; i++) {
+                    await session.evaluate("ironroostCapture.press('down')", false);
+                    await settle(session, KEY_SETTLE_FRAMES);
+                }
+                await save("menu-keys");
+                // The cursor now sits on Endless; the run below starts with Enter on New game.
+                await session.openMenu({ seed });
+                await settle(session, MENU_SETTLE_FRAMES);
+            }
+            if (views.every(view => view.startsWith("menu"))) continue;
 
             // The game screen names its stage the moment it opens, card and all, while the
             // run itself only starts once the card is gone; the card is shot in between.
@@ -113,12 +146,78 @@ async function shoot(label) {
             // Let go of everything first, so the overlay is not drawn over a held trigger.
             await session.evaluate(`ironroostCapture.startTake({ events: [] })`, false);
             await session.evaluate("ironroostCapture.press('pause')", false);
-            await session.evaluate(`ironroostCapture.idle(${PAUSE_SETTLE_FRAMES})`);
+            await settle(session, PAUSE_SETTLE_FRAMES);
             // An overlay's strings are fetched the first time it opens, on the real clock, and
             // it draws its buttons blank until they land. Give them wall time, then frames.
             await new Promise(resolve => setTimeout(resolve, STRINGS_WAIT_MS));
             await session.evaluate(`ironroostCapture.idle(${PAUSE_SETTLE_FRAMES})`);
             await save("pause");
+        } finally {
+            session.close();
+        }
+    }
+}
+
+/*
+ * The screens off the menu, reached the way a keyboard player reaches them: Tab walks the
+ * focusable controls in the order they are built, Enter presses one. Each route starts from a
+ * freshly loaded menu with New game focused, so the tab counts below are counted from there, in
+ * build order, and only change when a screen gains or loses a control ahead of the target.
+ *
+ * A step is a key from capture.js's KEYS, "run" to start stage one as `shoot` does, or
+ * "shot:<name>" to save the screen.
+ */
+const TOUR = {
+    daily: ["tab", "tab", "enter", "shot:daily"],
+    collection: ["tab", "tab", "tab", "enter", "shot:collection"],
+    records: ["tab", "tab", "tab", "tab", "enter", "shot:records", "tab", "enter", "shot:records-nickname"],
+    settings: ["tab", "tab", "tab", "tab", "tab", "enter", "shot:settings", "tab", "enter", "shot:settings-reset"],
+    about: ["tab", "tab", "tab", "tab", "tab", "tab", "enter", "shot:about"],
+    stages: ["run", "pause", "tab", "tab", "enter", "shot:stages"]
+};
+
+async function tour(label) {
+    if (!/^[\w.-]+$/.test(label ?? "")) throw new Error("give the shots a label: letters, digits, . - _");
+    const formats = option("--formats", "landscape,phone").split(",");
+    // --steps runs one ad-hoc route instead, for working out a new one: "run,pause,shot:a,tab,shot:b".
+    const adHoc = option("--steps");
+    if (adHoc) TOUR.custom = adHoc.split(",");
+    const routes = adHoc ? ["custom"] : option("--routes", Object.keys(TOUR).join(",")).split(",");
+    const port = Number(option("--port", 8130));
+    const dir = path.join(SCREENS, label);
+    fs.mkdirSync(dir, { recursive: true });
+
+    for (const format of formats) {
+        const session = await launch({ format, port, scale: 1, dist: option("--dist", "productionExecutable") });
+        try {
+            for (const route of routes) {
+                const steps = TOUR[route];
+                if (!steps) throw new Error(`no tour route ${route}; expected one of ${Object.keys(TOUR).join(", ")}`);
+                await session.openMenu({ seed: 1 });
+                await session.evaluate(`ironroostCapture.idle(${MENU_SETTLE_FRAMES})`);
+                for (const step of steps) {
+                    if (step.startsWith("shot:")) {
+                        // Every new screen fetches its strings on the real clock; see pause.
+                        await new Promise(resolve => setTimeout(resolve, STRINGS_WAIT_MS));
+                        await session.evaluate(`ironroostCapture.idle(${PAUSE_SETTLE_FRAMES})`);
+                        const { data } = await session.client.send("Page.captureScreenshot", { format: "png" });
+                        const file = path.join(dir, `${format}-${step.slice(5)}.png`);
+                        fs.writeFileSync(file, Buffer.from(data, "base64"));
+                        console.log(path.relative(process.cwd(), file));
+                    } else if (step === "run") {
+                        await session.evaluate(`ironroostCapture.begin("campaign")`, false);
+                        for (let idled = 0; !(await session.evaluate("ironroostCapture.beginState", false)).done; idled += 15) {
+                            if (idled > FPS * 60) throw new Error(`${format}: stage one never started`);
+                            await session.evaluate("ironroostCapture.idle(15)");
+                        }
+                        await session.evaluate(`ironroostCapture.startTake({ events: [] })`, false);
+                        await session.evaluate(`ironroostCapture.advance(${FPS})`);
+                    } else {
+                        await session.evaluate(`ironroostCapture.press(${JSON.stringify(step)})`, false);
+                        await settle(session, KEY_SETTLE_FRAMES * 3);
+                    }
+                }
+            }
         } finally {
             session.close();
         }
@@ -198,8 +297,9 @@ async function compare(before, after) {
 
 (async () => {
     if (command === "shoot") await shoot(positional[0]);
+    else if (command === "tour") await tour(positional[0]);
     else if (command === "compare") await compare(positional[0], positional[1]);
-    else throw new Error("usage: screenshots.js shoot <label> | compare <before> <after>");
+    else throw new Error("usage: screenshots.js shoot <label> | tour <label> | compare <before> <after>");
 })().catch(error => {
     console.error(error.message ?? error);
     process.exit(1);

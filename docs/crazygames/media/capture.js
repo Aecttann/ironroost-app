@@ -8,11 +8,6 @@
  * drew.
  */
 (() => {
-    const PROBE_X = 0.5;          // Menu buttons are centred, so the middle column always hits them.
-    const PROBE_FROM = 0.40;      // Probing downwards means the first button hit is the top one.
-    const PROBE_TO = 0.66;
-    const PROBE_STEP = 0.012;
-
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
     function canvas() {
@@ -69,7 +64,10 @@
         wasdLeft: ["KeyA", "a", 65],
         wasdRight: ["KeyD", "d", 68],
         enter: ["Enter", "Enter", 13],
-        pause: ["KeyP", "p", 80]
+        pause: ["KeyP", "p", 80],
+        // Moves focus to the next control in the menus, in the order they are built — which,
+        // unlike a click position, survives a control moving across the screen.
+        tab: ["Tab", "Tab", 9]
     };
 
     /** Which physical keys a seat drives. Solo, one tank answers to the arrows and Space. */
@@ -84,12 +82,11 @@
      *
      * Measured against the two capture sizes in record-gameplay.js, not guessed — and not
      * portable to a third size. The menu lays out in dp, so the same button covers a different
-     * fraction of a different viewport, and above 700dp wide it switches to two columns. Both
-     * capture sizes happen to land on the wide layout.
+     * fraction of a different viewport. STALE for 720x1080 since the quality update's phase 1:
+     * a tall window now gets the single-column menu. Re-measure before recording (phase 8).
      *
-     * startGame() finds "New game" by probing because the first button that starts a run is
-     * unambiguous. Endless is not: it sits below New game, so probing would start the campaign
-     * before ever reaching it. Hence the coordinates, and hence the check in beginRun that the
+     * The solo campaign needs none of this: startGame() presses Enter on New game, which holds
+     * focus as the menu opens. The co-op routes still click, hence the check in beginRun that the
      * run we got is the run we asked for.
      *
      * `pauseStages` is the Stages button on the pause overlay and `campaignStage` the tile for
@@ -190,24 +187,27 @@
     const within = (promise, ms) =>
         Promise.race([promise.then(() => true), sleep(ms).then(() => false)]);
 
+    /*
+     * New game has focus the moment the menu opens, so Enter starts the campaign at any layout
+     * and any window size, with no position to measure. The stage it lands on is checked all the
+     * same: Enter on anything else would start something else.
+     */
     async function startGame(target) {
         const started = gameplayStarted();
-        for (let fraction = PROBE_FROM; fraction <= PROBE_TO; fraction += PROBE_STEP) {
-            // The game screen names its stage as soon as it opens. From then on the probe would
-            // only be tapping the stage card, which skips it; the card starts the run by itself.
-            if (portalEvents.stage !== null) break;
-            click(target, Math.round(innerWidth * PROBE_X), Math.round(innerHeight * fraction));
-            if (await within(started, 400)) return true;
+        key(target, "enter", "keydown");
+        key(target, "enter", "keyup");
+        if (!await within(started, 12000)) return false;
+        if (portalEvents.stage !== 1) {
+            throw new Error(`Enter on the menu landed in stage ${portalEvents.stage}, not a new game; New game lost focus`);
         }
-        return await within(started, 10000);
+        return true;
     }
 
     /*
-     * On the wide layout the first thing the probe meets going down the centre column is the
-     * "2 players" segment, which would turn a solo run into co-op. With the keyboard hidden the
-     * menu greys that segment out and drops back to one seat — the same thing it does on a phone —
-     * so the probe can only start a solo run. Only the menu reads the flag, polling it once a
-     * second, hence the wait; it is put back as soon as the run is under way.
+     * The seat choice outlives the menu, so a solo run first makes sure it is one. With the
+     * keyboard hidden the menu greys out "2 players" and drops back to one seat — the same thing
+     * it does on a phone. Only the menu reads the flag, polling it once a second, hence the wait;
+     * it is put back as soon as the run is under way.
      */
     async function withoutKeyboard(action) {
         const portal = window.ironroostPortal;
