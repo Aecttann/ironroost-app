@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ironroost Play graphics</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=block">
+<style>
+    body { margin: 0; background: #0b0d10; color: #bfc5cc; font: 13px system-ui, sans-serif; }
+    #stage { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; align-items: flex-start; }
+    figure { margin: 0; }
+    canvas { display: block; max-width: 30vw; height: auto; background: #000; }
+    figcaption { padding-top: 6px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="module">
+/*
+ * Draws the Google Play listing graphics from the game's own resources: its sprites, its stage
+ * maps and its translated strings, laid out with the sizes and colours of the Compose screens
+ * (TanksGameScreen.kt, UiColors.kt). Nothing here is traced from a screenshot, so every scene is
+ * reproducible and renders at the store's native 1080x1920 instead of an upscaled phone capture.
+ *
+ * Serve the repository root and open this page to see every graphic, or pass
+ *   ?job=shot&id=<scene id>&lang=<en|uk>   one phone screenshot
+ *   ?job=feature&lang=<en|uk>             the 1024x500 feature graphic
+ *   ?job=icon                             the 512x512 icon
+ * which leaves the PNG in window.__result for render.js to collect.
+ */
+import { SHOTS, FEATURE, LOCALES } from "./scenes.mjs";
+
+const RES = "/shared/src/commonMain/composeResources";
+const GFX = `${RES}/files/battle_city/graphics`;
+const LEVELS = `${RES}/files/battle_city/data/levels/prototype_13x13`;
+const LAUNCHER_FOREGROUND = "/androidApp/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png";
+const MAX_STAGE = 35;
+const MAX_DIFFICULTY = 5;
+
+// UiColors.kt, plus the Material defaults the dark scheme in App.kt leaves unset.
+const C = {
+    screen: "#202020",
+    board: "#111111",
+    menu: "#1A1F28",
+    gold: "#E0A03C",
+    muted: "#BFC5CC",
+    green: "#9BD16B",
+    brickRed: "#B4522A",
+    onSurface: "#E7EAEF",
+    onSurfaceVariant: "#CAC4D0",
+    dialog: "#2B2930",
+    outline: "#938F99"
+};
+
+// A phone is ~411dp wide; the store frame draws that screen 945px wide.
+const DP = 2.3;
+const dp = value => value * DP;
+
+const FONT = `Roboto, "Segoe UI", Arial, sans-serif`;
+
+// ------------------------------------------------------------------------------ resources
+
+const imageCache = new Map();
+
+function loadImage(src) {
+    if (!imageCache.has(src)) {
+        imageCache.set(src, new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error(`missing image ${src}`));
+            image.src = src;
+        }));
+    }
+    return imageCache.get(src);
+}
+
+/** Actor sprite names map onto files the same way TanksAssets.spritePaths() does. */
+function spritePath(name, dir) {
+    if (name.startsWith("player_")) {
+        const [, colour, level] = name.split("_");
+        return `${GFX}/tanks/player/${colour}_${level}_${dir}.png`;
+    }
+    const type = name.slice("enemy_".length);
+    const file = type === "bonus" ? "bonus_flash" : type;
+    return `${GFX}/tanks/enemy/${file}_${dir}.png`;
+}
+
+const POWERUP_FILES = {
+    star: "star", gun: "gun_1990_variant", helmet: "helmet", timer: "timer",
+    shovel: "shovel", grenade: "grenade", tank_life: "tank_life", boat: "boat_1990_variant"
+};
+
+async function loadStage(number) {
+    const id = String(number).padStart(2, "0");
+    const response = await fetch(`${LEVELS}/prototype_stage_${id}.json`);
+    if (!response.ok) throw new Error(`missing stage ${number}`);
+    return response.json();
+}
+
+/** Reads the game's own strings.xml, so the HUD says exactly what the game says. */
+async function loadStrings(lang) {
+    const dir = lang === "en" ? "values" : `values-${lang}`;
+    const response = await fetch(`${RES}/${dir}/strings.xml`);
+    if (!response.ok) throw new Error(`missing strings for ${lang}`);
+    const doc = new DOMParser().parseFromString(await response.text(), "application/xml");
+    const table = {};
+    for (const node of doc.querySelectorAll("string")) {
+        table[node.getAttribute("name")] = node.textContent
+            .replace(/\\'/g, "'")
+            .replace(/\\"/g, '"')
+            .replace(/\\n/g, "\n");
+    }
+    return (key, ...args) => {
+        let value = table[key];
+        if (value == null) throw new Error(`string ${key} is missing for ${lang}`);
+        args.forEach((arg, index) => {
+            value = value.replace(new RegExp(`%${index + 1}\\$[ds]`, "g"), String(arg));
+        });
+        return value;
+    };
+}
+
+let fontsOk = true;
+
+async function loadFonts() {
+    const sample = "Ironroost Рівень 0123";
+    await Promise.all(["400", "500", "700", "900"].map(weight =>
+        document.fonts.load(`${weight} 20px Roboto`, sample).catch(() => [])));
+    fontsOk = document.fonts.check("700 20px Roboto", sample);
+    if (!fontsOk) console.warn("Roboto did not load; text falls back to a system font");
+}
+
+// ---------------------------------------------------------------------------- drawing kit
+
+function font(size, weight = 400) {
+    return `${weight} ${size}px ${FONT}`;
+}
+
+function measure(ctx, text, size, weight = 400) {
+    ctx.font = font(size, weight);
+    return ctx.measureText(text).width;
+}
+
+function drawText(ctx, text, x, y, { size, weight = 400, color = "#fff", align = "left", baseline = "middle" }) {
+    ctx.font = font(size, weight);
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+    ctx.fillText(text, x, y);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+}
+
+function fillRound(ctx, x, y, w, h, r, fill, stroke, strokeWidth = dp(1)) {
+    roundRect(ctx, x, y, w, h, r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) {
+        ctx.lineWidth = strokeWidth;
+        ctx.strokeStyle = stroke;
+        roundRect(ctx, x + strokeWidth / 2, y + strokeWidth / 2, w - strokeWidth, h - strokeWidth, Math.max(0, r - strokeWidth / 2));
+        ctx.stroke();
+    }
+}
+
+function circle(ctx, cx, cy, radius, fill, stroke) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) {
+        ctx.lineWidth = dp(1);
+        ctx.strokeStyle = stroke;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius - dp(0.5), 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+
+function wrap(ctx, text, maxWidth, size, weight) {
+    ctx.font = font(size, weight);
+    const lines = [];
+    let line = "";
+    for (const word of text.split(" ")) {
+        const next = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(next).width > maxWidth) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = next;
+        }
+    }
+    if (line) lines.push(line);
+    return lines;
+}
+
+/** Lays items out the way Arrangement.SpaceBetween does, returning each item's left edge. */
+function spaceBetween(widths, start, total) {
+    if (widths.length === 1) return [start];
+    const gap = (total - widths.reduce((a, b) => a + b, 0)) / (widths.length - 1);
+    const xs = [];
+    let x = start;
+    for (const width of widths) { xs.push(x); x += width + gap; }
+    return xs;
+}
+
+// ---------------------------------------------------------------------------------- board
+
+/** A mutable copy of the stage, with the scene's overrides applied. */
+function buildBoard(stage, spec) {
+    const grid = stage.grid.map(row => row.split(""));
+    for (const [key, tile] of Object.entries(spec.set ?? {})) {
+        const [x, y] = key.split(",").map(Number);
+        grid[y][x] = tile;
+    }
+    return { grid, quarters: spec.quarters ?? {} };
+}
+
+async function drawBoard(ctx, x0, y0, size, board, actors, { frame = 0 } = {}) {
+    const rows = board.grid.length;
+    const cols = board.grid[0].length;
+    const tile = size / Math.max(rows, cols);
+    ctx.imageSmoothingEnabled = false;
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x0, y0, size, size);
+    ctx.fillStyle = C.board;
+    ctx.fillRect(x0, y0, tile * cols, tile * rows);
+
+    const brick = await loadImage(`${GFX}/tiles/brick_damage_0.png`);
+    const tiles = {
+        S: await loadImage(`${GFX}/tiles/steel.png`),
+        W: await loadImage(`${GFX}/tiles/water_${frame % 2}.png`),
+        I: await loadImage(`${GFX}/tiles/ice.png`),
+        F: await loadImage(`${GFX}/tiles/forest_${frame % 2}.png`),
+        H: await loadImage(`${GFX}/ui/base_eagle_alive.png`)
+    };
+    const cell = Math.ceil(tile);
+
+    const drawTiles = forestPass => {
+        board.grid.forEach((row, y) => row.forEach((t, x) => {
+            if (t === "." || (t === "F") !== forestPass) return;
+            const px = Math.round(x0 + x * tile);
+            const py = Math.round(y0 + y * tile);
+            if (t === "B") {
+                // Only the surviving quarters, as drawBrickCell does.
+                const mask = board.quarters[`${x},${y}`] ?? 15;
+                const half = tile / 2;
+                const sw = brick.width / 2;
+                const sh = brick.height / 2;
+                for (let qy = 0; qy < 2; qy++) {
+                    for (let qx = 0; qx < 2; qx++) {
+                        if (!(mask & (1 << (qy * 2 + qx)))) continue;
+                        ctx.drawImage(brick, qx * sw, qy * sh, sw, sh,
+                            Math.round(x0 + x * tile + qx * half), Math.round(y0 + y * tile + qy * half),
+                            Math.ceil(half), Math.ceil(half));
+                    }
+                }
+                return;
+            }
+            if (tiles[t]) ctx.drawImage(tiles[t], px, py, cell, cell);
+        }));
+    };
+
+    const sprite = (image, cx, cy, sizeCells = 1) => {
+        const pixels = Math.ceil(tile * sizeCells);
+        const centre = (sizeCells - 1) / 2;
+        ctx.drawImage(image, Math.round(x0 + (cx - centre) * tile), Math.round(y0 + (cy - centre) * tile), pixels, pixels);
+    };
+
+    drawTiles(false);
+
+    for (const actor of actors.filter(a => a.kind === "powerup")) {
+        sprite(await loadImage(`${GFX}/powerups/${POWERUP_FILES[actor.type]}.png`), actor.x, actor.y);
+    }
+    for (const actor of actors.filter(a => a.kind === "tank")) {
+        sprite(await loadImage(spritePath(actor.sprite, actor.dir)), actor.x, actor.y);
+        if (actor.shield != null) sprite(await loadImage(`${GFX}/effects/shield_${actor.shield}.png`), actor.x, actor.y);
+    }
+    for (const actor of actors.filter(a => a.kind === "bullet")) {
+        const image = await loadImage(`${GFX}/effects/bullet_${actor.dir}.png`);
+        const bulletSize = Math.max(1, Math.round(tile * 0.42));
+        ctx.drawImage(image, Math.round(x0 + actor.x * tile - bulletSize / 2), Math.round(y0 + actor.y * tile - bulletSize / 2), bulletSize, bulletSize);
+    }
+
+    drawTiles(true);
+
+    for (const actor of actors.filter(a => a.kind === "explosion" || a.kind === "spawn")) {
+        const image = await loadImage(`${GFX}/effects/${actor.kind}_${actor.frame}.png`);
+        sprite(image, actor.x, actor.y, actor.size ?? 1);
+    }
+}
+
+// ------------------------------------------------------------------------------ game screen
+
+const UPGRADE_NAMES = {
+    rapid_fire: "upgrade_rapid_fire", twin_shot: "upgrade_twin_shot", armor: "upgrade_armor",
+    ricochet: "upgrade_ricochet", treads: "upgrade_treads", piercing: "upgrade_piercing",
+    bulwark: "upgrade_bulwark", salvage: "upgrade_salvage"
+};
+const UPGRADE_MAX = { rapid_fire: 3, twin_shot: 3, armor: 3, ricochet: 3, treads: 3, piercing: 2, bulwark: 3, salvage: 5 };
+
+/** The game screen's height for a scene: HUD rows, board, control strip, as TanksGameScreen stacks them. */
+function screenHeight(scene) {
+    const hudRows = scene.hud.loadout?.length ? 3 : 2;
+    const hud = hudRows * 24 + (hudRows - 1) * 4;
+    return dp(8 + hud + 8 + 387 + 12 + 192 + 8);
+}
+
+async function drawHud(ctx, x, y, width, scene, t) {
+    const hud = scene.hud;
+    const life = await loadImage(`${GFX}/ui/life_tank_icon.png`);
+    const flag = await loadImage(`${GFX}/ui/flag_stage.png`);
+    const queue = await loadImage(`${GFX}/tanks/enemy/basic_up.png`);
+    ctx.imageSmoothingEnabled = false;
+
+    // Row one: lives, stage or wave, score.
+    let rowY = y + dp(12);
+    const livesText = `x${hud.lives}`;
+    const lifeIcons = Math.min(hud.lives, 5);
+    const leftW = lifeIcons * dp(16) + dp(6) + measure(ctx, livesText, dp(13), 700);
+    const stageText = hud.wave != null ? t("tanks_wave", hud.wave) : t("tanks_stage", hud.stage);
+    const midW = dp(18) + dp(4) + measure(ctx, stageText, dp(13), 700);
+    const scoreText = t("tanks_score", hud.score);
+    const rightW = measure(ctx, scoreText, dp(13), 700);
+    const [lx, mx, rx] = spaceBetween([leftW, midW, rightW], x, width);
+    for (let i = 0; i < lifeIcons; i++) ctx.drawImage(life, lx + i * dp(16), rowY - dp(7), dp(14), dp(14));
+    drawText(ctx, livesText, lx + lifeIcons * dp(16) + dp(6), rowY, { size: dp(13), weight: 700 });
+    ctx.drawImage(flag, mx, rowY - dp(9), dp(18), dp(18));
+    drawText(ctx, stageText, mx + dp(22), rowY, { size: dp(13), weight: 700 });
+    drawText(ctx, scoreText, rx, rowY, { size: dp(13), weight: 700 });
+
+    // Row two: the queue, enemies, tank level.
+    rowY += dp(28);
+    const queueIcons = Math.min(hud.pending, 10);
+    const extra = hud.pending > 10 ? `+${hud.pending - 10}` : "";
+    const queueW = queueIcons * dp(16) + (extra ? measure(ctx, extra, dp(11)) : 0);
+    const enemiesText = t("tanks_enemies", hud.destroyed, hud.total);
+    const levelText = t("tanks_tank_level", hud.level);
+    const [qx, ex, tx] = spaceBetween([queueW, measure(ctx, enemiesText, dp(12)), measure(ctx, levelText, dp(12))], x, width);
+    for (let i = 0; i < queueIcons; i++) ctx.drawImage(queue, qx + i * dp(16), rowY - dp(7), dp(14), dp(14));
+    if (extra) drawText(ctx, extra, qx + queueIcons * dp(16), rowY, { size: dp(11), color: C.muted });
+    drawText(ctx, enemiesText, ex, rowY, { size: dp(12) });
+    drawText(ctx, levelText, tx, rowY, { size: dp(12), color: C.green });
+
+    // Row three, endless only: the build so far.
+    if (hud.loadout?.length) {
+        rowY += dp(28);
+        const labels = hud.loadout.map(([id, level]) => `${t(UPGRADE_NAMES[id])} ${level}`).join("  ·  ");
+        // The game would wrap this onto a second line and shrink the board; the replica keeps one
+        // line, so a build too long for it has to be shortened in scenes.mjs rather than clipped.
+        if (measure(ctx, labels, dp(11)) > width) throw new Error(`the upgrade row is too long for one line: ${labels}`);
+        drawText(ctx, labels, x, rowY, { size: dp(11), color: C.gold });
+    }
+}
+
+function drawControls(ctx, x, y, width, scene, t) {
+    const controls = scene.controls;
+    const rowH = dp(192);
+    const inner = { x: x + dp(8), y: y + dp(8), w: width - dp(16), h: rowH - dp(16) };
+    const glass = (gx, gy, gw, gh) => fillRound(ctx, gx, gy, gw, gh, dp(28), "rgba(0,0,0,0.28)", "rgba(255,255,255,0.22)");
+
+    // Joystick, 152dp, centred vertically on the left.
+    const stick = dp(152);
+    const sx = inner.x;
+    const sy = inner.y + (inner.h - stick) / 2;
+    glass(sx, sy, stick, stick);
+    const box = { x: sx + dp(8), y: sy + dp(8), s: stick - dp(16) };
+    const centre = { x: box.x + box.s / 2, y: box.y + box.s / 2 };
+    circle(ctx, centre.x, centre.y, (box.s - dp(20)) / 2, "rgba(255,255,255,0.12)", "rgba(255,255,255,0.30)");
+    const reach = box.s / 2 - dp(22) - dp(20);
+    const knobOffset = { up: [0, -reach], down: [0, reach], left: [-reach, 0], right: [reach, 0] }[controls.knob] ?? [0, 0];
+    circle(ctx, centre.x + knobOffset[0], centre.y + knobOffset[1], dp(20), "rgba(255,255,255,0.36)", "rgba(255,255,255,0.50)");
+
+    // Pause and fire, 150dp wide on the right.
+    const panelW = dp(150);
+    const px = inner.x + inner.w - panelW;
+    glass(px, inner.y, panelW, inner.h);
+    const content = { x: px + dp(8), y: inner.y + dp(8), w: panelW - dp(16), h: inner.h - dp(16) };
+    const column = dp(40) + dp(16) + dp(94);
+    const top = content.y + (content.h - column) / 2;
+    const cx = content.x + content.w / 2;
+    fillRound(ctx, cx - dp(47), top, dp(94), dp(40), dp(18), "rgba(255,255,255,0.16)", "rgba(255,255,255,0.30)");
+    const pauseLabel = controls.paused ? t("tanks_start") : t("tanks_pause");
+    drawText(ctx, pauseLabel, cx, top + dp(20), { size: dp(12), weight: 700, align: "center" });
+    const fireY = top + dp(56) + dp(47);
+    circle(ctx, cx, fireY, dp(47), controls.firing ? "rgba(255,90,69,0.92)" : "rgba(209,61,47,0.82)", "rgba(255,255,255,0.28)");
+    drawText(ctx, t("tanks_fire"), cx, fireY, { size: dp(12), weight: 700, align: "center" });
+}
+
+function drawUpgradePicker(ctx, w, h, overlay, t) {
+    ctx.fillStyle = "rgba(0,0,0,0.902)";
+    ctx.fillRect(0, 0, w, h);
+
+    const cardW = dp(0.85 * (411 - 40));
+    const cardH = dp(70);
+    const contentH = dp(24 + 4 + 24 + 16) + overlay.choices.length * (cardH + dp(8)) + dp(4 + 40);
+    let y = (h - contentH) / 2;
+    const cx = w / 2;
+
+    drawText(ctx, t("upgrade_title", overlay.wave), cx, y + dp(12), { size: dp(24), weight: 700, color: C.gold, align: "center" });
+    y += dp(28);
+    drawText(ctx, t("upgrade_subtitle"), cx, y + dp(12), { size: dp(13), color: C.muted, align: "center" });
+    y += dp(24 + 16);
+
+    for (const [id, held] of overlay.choices) {
+        const x = cx - cardW / 2;
+        fillRound(ctx, x, y, cardW, cardH, cardH / 2, null, C.outline);
+        const left = x + dp(24);
+        const right = x + cardW - dp(24);
+        const nameY = y + dp(8 + 6 + 10);
+        drawText(ctx, t(UPGRADE_NAMES[id]), left, nameY, { size: dp(15), weight: 700, color: C.gold });
+        const next = held + 1;
+        const levelText = next >= UPGRADE_MAX[id] ? t("upgrade_max") : t("upgrade_level", next);
+        drawText(ctx, levelText, right, nameY, { size: dp(12), color: C.muted, align: "right" });
+        drawText(ctx, t(`${UPGRADE_NAMES[id]}_desc`), left, nameY + dp(22), { size: dp(12) });
+        y += cardH + dp(8);
+    }
+    y += dp(4);
+    drawText(ctx, t("upgrade_skip"), cx, y + dp(20), { size: dp(14), weight: 500, color: C.muted, align: "center" });
+}
+
+async function drawStagePicker(ctx, w, h, overlay, t) {
+    // The pause overlay stays under the dialog, then the dialog's own scrim.
+    ctx.fillStyle = "rgba(0,0,0,0.902)";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(0,0,0,0.32)";
+    ctx.fillRect(0, 0, w, h);
+
+    const stages = await Promise.all(Array.from({ length: MAX_STAGE }, (_, i) => loadStage(i + 1)));
+    const dialogW = dp(320);
+    const dialogH = h - dp(48);
+    const dx = (w - dialogW) / 2;
+    const dy = (h - dialogH) / 2;
+    ctx.save();
+    roundRect(ctx, dx, dy, dialogW, dialogH, dp(28));
+    ctx.fillStyle = C.dialog;
+    ctx.fill();
+    ctx.clip();
+
+    const pad = dp(24);
+    let y = dy + pad;
+    drawText(ctx, t("tanks_select_stage_title"), dx + pad, y + dp(16), { size: dp(24), color: C.onSurface });
+    y += dp(32 + 16);
+
+    const buttonsTop = dy + dialogH - pad - dp(40);
+    const gridBottom = buttonsTop - dp(24);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(dx, y, dialogW, gridBottom - y);
+    ctx.clip();
+
+    drawText(ctx, t("tanks_highest_completed_stage", overlay.highestCompleted), dx + pad, y + dp(10), { size: dp(14), color: C.onSurfaceVariant });
+    y += dp(20 + 8);
+
+    const minimapColours = { B: C.brickRed, S: "#C9C9C9", W: "#2A4FB4", F: "#2E8B34", I: "#BFE3EC", H: C.gold };
+    const tileW = (dialogW - pad * 2 - dp(6) * 3) / 4;
+    const tileH = dp(4) + (tileW - dp(8)) + dp(20) + dp(20) + dp(4);
+    for (let row = 0; row * 4 < MAX_STAGE && y < gridBottom; row++) {
+        for (let col = 0; col < 4; col++) {
+            const number = row * 4 + col + 1;
+            if (number > MAX_STAGE) break;
+            const stage = stages[number - 1];
+            const available = number <= overlay.highestCompleted + 1;
+            const selected = number === overlay.selected;
+            const tx = dx + pad + col * (tileW + dp(6));
+            const border = selected ? C.gold : available ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.12)";
+            fillRound(ctx, tx, y, tileW, tileH, dp(6), null, border, selected ? dp(2) : dp(1));
+
+            const mapSize = tileW - dp(8);
+            const mx = tx + dp(4);
+            const my = y + dp(4);
+            fillRound(ctx, mx, my, mapSize, mapSize, dp(3), "#0C0C0C");
+            const cell = mapSize / stage.grid.length;
+            ctx.globalAlpha = available ? 1 : 0.35;
+            stage.grid.forEach((line, gy) => [...line].forEach((ch, gx) => {
+                const colour = minimapColours[ch];
+                if (!colour) return;
+                ctx.fillStyle = colour;
+                ctx.fillRect(mx + gx * cell, my + gy * cell, cell + 0.5, cell + 0.5);
+            }));
+            ctx.globalAlpha = 1;
+
+            const numberY = my + mapSize + dp(10);
+            drawText(ctx, String(number), tx + tileW / 2, numberY, { size: dp(11), weight: 700, color: available ? C.onSurface : "#888888", align: "center" });
+            const filled = Math.min(Math.max(stage.difficulty ?? 1, 1), MAX_DIFFICULTY);
+            const stars = `[${"*".repeat(filled)}${"-".repeat(MAX_DIFFICULTY - filled)}]`;
+            drawText(ctx, stars, tx + tileW / 2, numberY + dp(20), { size: dp(9), color: available ? C.gold : "#888888", align: "center" });
+        }
+        y += tileH + dp(8);
+    }
+    ctx.restore();
+
+    drawText(ctx, t("tanks_close"), dx + dialogW - pad - dp(12), buttonsTop + dp(20), { size: dp(14), weight: 500, color: C.gold, align: "right" });
+    ctx.restore();
+}
+
+/** One phone screen of the game, drawn at the origin. */
+async function drawGameScreen(ctx, w, h, scene, t) {
+    ctx.fillStyle = C.screen;
+    ctx.fillRect(0, 0, w, h);
+
+    const padX = dp(12);
+    let y = dp(8);
+    await drawHud(ctx, padX, y, w - padX * 2, scene, t);
+    const hudRows = scene.hud.loadout?.length ? 3 : 2;
+    y += dp(hudRows * 24 + (hudRows - 1) * 4) + dp(8);
+
+    const boardSize = dp(387);
+    const stage = await loadStage(scene.board.stage);
+    const board = buildBoard(stage, scene.board);
+    // Snap the board to whole tiles so every sprite pixel lands on the same grid.
+    const tile = Math.floor(boardSize / 13);
+    const snapped = tile * 13;
+    await drawBoard(ctx, (w - snapped) / 2, y + (boardSize - snapped) / 2, snapped, board, scene.actors ?? []);
+    y += boardSize + dp(12);
+
+    drawControls(ctx, 0, y, w, scene, t);
+
+    if (scene.overlay?.kind === "upgrades") drawUpgradePicker(ctx, w, h, scene.overlay, t);
+    if (scene.overlay?.kind === "stages") await drawStagePicker(ctx, w, h, scene.overlay, t);
+}
+
+// --------------------------------------------------------------------------- store frames
+
+async function drawLegend(ctx, kind, cx, y) {
+    ctx.imageSmoothingEnabled = false;
+    if (kind === "levels") {
+        const size = 88;
+        const gap = 64;
+        const total = size * 4 + gap * 3;
+        let x = cx - total / 2;
+        for (let level = 1; level <= 4; level++) {
+            ctx.drawImage(await loadImage(`${GFX}/tanks/player/green_level${level}_up.png`), x, y, size, size);
+            if (level < 4) drawText(ctx, "›", x + size + gap / 2, y + size / 2, { size: 64, weight: 700, color: C.gold, align: "center" });
+            x += size + gap;
+        }
+        return size;
+    }
+    if (kind === "powerups") {
+        const size = 80;
+        const gap = 26;
+        const types = ["star", "gun", "helmet", "timer", "shovel", "grenade", "tank_life", "boat"];
+        const total = size * types.length + gap * (types.length - 1);
+        let x = cx - total / 2;
+        for (const type of types) {
+            ctx.drawImage(await loadImage(`${GFX}/powerups/${POWERUP_FILES[type]}.png`), x, y, size, size);
+            x += size + gap;
+        }
+        return size;
+    }
+    return 0;
+}
+
+async function renderShot(canvas, scene, lang) {
+    const W = 1080;
+    const H = 1920;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    const t = await loadStrings(lang);
+
+    const back = ctx.createLinearGradient(0, 0, 0, H);
+    back.addColorStop(0, "#161b23");
+    back.addColorStop(1, "#0c0f14");
+    ctx.fillStyle = back;
+    ctx.fillRect(0, 0, W, H);
+    const glow = ctx.createRadialGradient(W / 2, 120, 0, W / 2, 120, 720);
+    glow.addColorStop(0, "rgba(224,160,60,0.20)");
+    glow.addColorStop(1, "rgba(224,160,60,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // One line each: a second line pushes the phone off the bottom, so a caption that needs one
+    // is too long for a thumbnail anyway and fails here instead of shipping.
+    const caption = scene.caption[lang];
+    for (const [text, room, size, weight] of [[caption.title, W - 120, 78, 900], [caption.sub, W - 160, 38, 400]]) {
+        if (wrap(ctx, text, room, size, weight).length > 1) throw new Error(`caption too long for one line (${lang}): ${text}`);
+    }
+    let y = 92;
+    drawText(ctx, caption.title, W / 2, y + 39, { size: 78, weight: 900, align: "center" });
+    y += 96;
+    drawText(ctx, caption.sub, W / 2, y + 21, { size: 38, color: C.muted, align: "center" });
+    y += 50;
+    if (scene.legend) {
+        y += 16;
+        y += await drawLegend(ctx, scene.legend, W / 2, y);
+    }
+
+    // The phone screen sits under the caption and runs off the bottom edge if it has to.
+    const screenW = dp(411);
+    const screenH = screenHeight(scene);
+    const sx = (W - screenW) / 2;
+    const sy = Math.max(y + 36, H - screenH - 48);
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.shadowBlur = 60;
+    ctx.shadowOffsetY = 18;
+    fillRound(ctx, sx, sy, screenW, screenH, 44, C.screen);
+    ctx.restore();
+
+    ctx.save();
+    roundRect(ctx, sx, sy, screenW, screenH, 44);
+    ctx.clip();
+    ctx.translate(sx, sy);
+    await drawGameScreen(ctx, screenW, screenH, scene, t);
+    ctx.restore();
+    fillRound(ctx, sx, sy, screenW, screenH, 44, null, "rgba(255,255,255,0.10)", 2);
+}
+
+/** Title lettering shared with the CrazyGames covers (docs/crazygames/media/cover.html). */
+function drawTitle(ctx, x, baseline, size, align = "left") {
+    const text = "IRONROOST";
+    const spacing = Math.round(size * 0.07);
+    ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    ctx.letterSpacing = `${spacing}px`;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+    ctx.shadowBlur = size * 0.34;
+    ctx.shadowOffsetY = size * 0.07;
+    ctx.fillStyle = "#0a0d12";
+    ctx.fillText(text, x, baseline);
+    ctx.restore();
+
+    ctx.lineWidth = size * 0.11;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#0a0d12";
+    ctx.strokeText(text, x, baseline);
+
+    const ink = ctx.createLinearGradient(0, baseline - size * 0.62, 0, baseline + size * 0.62);
+    ink.addColorStop(0, "#ffe09a");
+    ink.addColorStop(0.5, "#e0a03c");
+    ink.addColorStop(1, "#b8761c");
+    ctx.fillStyle = ink;
+    ctx.fillText(text, x, baseline);
+    ctx.letterSpacing = "0px";
+}
+
+async function renderFeature(canvas, lang) {
+    const W = 1024;
+    const H = 500;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    const back = ctx.createLinearGradient(0, 0, W, H);
+    back.addColorStop(0, "#161b23");
+    back.addColorStop(1, "#0a0d12");
+    ctx.fillStyle = back;
+    ctx.fillRect(0, 0, W, H);
+
+    // The whole stage on the right, at a whole-pixel scale, so the fight reads as the real board.
+    const stage = await loadStage(FEATURE.board.stage);
+    const board = buildBoard(stage, FEATURE.board);
+    const size = 36 * 13;
+    const bx = W - size - 24;
+    const by = (H - size) / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.7)";
+    ctx.shadowBlur = 40;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(bx, by, size, size);
+    ctx.restore();
+    await drawBoard(ctx, bx, by, size, board, FEATURE.actors);
+
+    const glow = ctx.createRadialGradient(bx * 0.45, H * 0.45, 0, bx * 0.45, H * 0.45, bx * 0.75);
+    glow.addColorStop(0, "rgba(224,160,60,0.16)");
+    glow.addColorStop(1, "rgba(224,160,60,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, bx, H);
+
+    // The largest title that fits the space left of the board.
+    const left = 48;
+    const room = bx - left - 36;
+    let titleSize = 96;
+    while (titleSize > 40 && titleWidth(ctx, titleSize) > room) titleSize -= 2;
+    drawTitle(ctx, left, H * 0.43, titleSize);
+    const lines = wrap(ctx, FEATURE.tagline[lang], room, 36, 500);
+    lines.forEach((line, i) => {
+        drawText(ctx, line, left + 4, H * 0.43 + titleSize * 0.62 + 34 + i * 46, { size: 36, weight: 500, color: C.onSurface });
+    });
+}
+
+function titleWidth(ctx, size) {
+    ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
+    ctx.letterSpacing = `${Math.round(size * 0.07)}px`;
+    const width = ctx.measureText("IRONROOST").width + size * 0.11;
+    ctx.letterSpacing = "0px";
+    return width;
+}
+
+/**
+ * The store icon is the launcher icon: the adaptive foreground on its background colour, framed
+ * a little tighter than a launcher mask so the tank reads at store sizes. The crop is 256 of the
+ * foreground's 432 pixels, which makes the scale exactly 2 and keeps every sprite pixel square.
+ */
+async function renderIcon(canvas) {
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = C.menu;
+    ctx.fillRect(0, 0, 512, 512);
+    const foreground = await loadImage(LAUNCHER_FOREGROUND);
+    const crop = 256;
+    const origin = (foreground.width - crop) / 2;
+    ctx.drawImage(foreground, origin, origin, crop, crop, 0, 0, 512, 512);
+}
+
+// ------------------------------------------------------------------------------------ PNG
+
+const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        table[n] = c >>> 0;
+    }
+    return table;
+})();
+
+function crc32(bytes) {
+    let c = 0xffffffff;
+    for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+}
+
+function chunk(type, data) {
+    const out = new Uint8Array(12 + data.length);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, data.length);
+    const typed = new TextEncoder().encode(type);
+    out.set(typed, 4);
+    out.set(data, 8);
+    view.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+}
+
+/**
+ * Encodes the canvas as a PNG with exactly the channels the store asks for: Play rejects an alpha
+ * channel on screenshots and the feature graphic, and wants one on the icon. Canvas.toBlob always
+ * writes RGBA, so the file is assembled here. Rows use the Up filter, which suits flat UI well.
+ */
+async function encodePng(canvas, alpha) {
+    const { width, height } = canvas;
+    const pixels = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const channels = alpha ? 4 : 3;
+    const stride = width * channels;
+    const raw = new Uint8Array((stride + 1) * height);
+    const previous = new Uint8Array(stride);
+    const current = new Uint8Array(stride);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0, i = y * width * 4, o = 0; x < width; x++, i += 4) {
+            current[o++] = pixels[i];
+            current[o++] = pixels[i + 1];
+            current[o++] = pixels[i + 2];
+            if (alpha) current[o++] = pixels[i + 3];
+        }
+        const row = y * (stride + 1);
+        raw[row] = 2;
+        for (let i = 0; i < stride; i++) raw[row + 1 + i] = (current[i] - previous[i]) & 0xff;
+        previous.set(current);
+    }
+    const compressed = new Uint8Array(await new Response(
+        new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"))
+    ).arrayBuffer());
+
+    const header = new Uint8Array(13);
+    const view = new DataView(header.buffer);
+    view.setUint32(0, width);
+    view.setUint32(4, height);
+    header.set([8, alpha ? 6 : 2, 0, 0, 0], 8);
+    const parts = [
+        new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+        chunk("IHDR", header),
+        chunk("IDAT", compressed),
+        chunk("IEND", new Uint8Array())
+    ];
+    const png = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let offset = 0;
+    for (const part of parts) { png.set(part, offset); offset += part.length; }
+    let binary = "";
+    for (let i = 0; i < png.length; i += 0x8000) binary += String.fromCharCode(...png.subarray(i, i + 0x8000));
+    return btoa(binary);
+}
+
+// ------------------------------------------------------------------------------- entry
+
+async function runJob(params) {
+    const canvas = document.createElement("canvas");
+    const job = params.get("job");
+    const lang = params.get("lang") ?? "en";
+    if (job === "shot") {
+        const scene = SHOTS.find(s => s.id === params.get("id"));
+        if (!scene) throw new Error(`no scene ${params.get("id")}`);
+        await renderShot(canvas, scene, lang);
+    } else if (job === "feature") {
+        await renderFeature(canvas, lang);
+    } else if (job === "icon") {
+        await renderIcon(canvas);
+    } else {
+        throw new Error(`unknown job ${job}`);
+    }
+    document.getElementById("stage").append(canvas);
+    return { width: canvas.width, height: canvas.height, fontsOk, png: await encodePng(canvas, job === "icon") };
+}
+
+async function gallery() {
+    const stage = document.getElementById("stage");
+    const add = async (label, draw) => {
+        const figure = document.createElement("figure");
+        const canvas = document.createElement("canvas");
+        await draw(canvas);
+        const caption = document.createElement("figcaption");
+        caption.textContent = label;
+        figure.append(canvas, caption);
+        stage.append(figure);
+    };
+    await add("icon", renderIcon);
+    for (const lang of Object.keys(LOCALES)) {
+        await add(`feature ${lang}`, canvas => renderFeature(canvas, lang));
+        for (const scene of SHOTS) await add(`${scene.id} ${lang}`, canvas => renderShot(canvas, scene, lang));
+    }
+}
+
+const params = new URLSearchParams(location.search);
+window.__result = null;
+(async () => {
+    await loadFonts();
+    if (params.has("job")) {
+        try {
+            window.__result = await runJob(params);
+        } catch (error) {
+            window.__result = { error: String(error?.stack ?? error) };
+        }
+    } else {
+        await gallery();
+    }
+})();
+</script>
+</body>
+</html>

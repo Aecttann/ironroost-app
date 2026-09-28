@@ -49,6 +49,11 @@ Submission copy, controls and the QA handoff live in `docs/crazygames/`. The lis
 preview videos, and the tools that generate them from the game's own art and a recorded run, are
 in `docs/crazygames/media/`.
 
+The Google Play listing lives in `docs/play/`: store texts in the eight game languages, the icon,
+feature graphics and phone screenshots rendered from the game's own sprites and maps, and the
+answers to Play Console's app-content forms. `java docs/play/CheckPlayListing.java` checks it all
+against Play's limits before upload.
+
 ## What the browser build needs from the page
 
 `webApp/src/webShell/index.html` is a template, not a resource: `:webApp:stampAppVersion`
