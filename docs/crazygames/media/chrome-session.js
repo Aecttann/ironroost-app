@@ -24,7 +24,10 @@ const CHROME_CANDIDATES = [
  */
 const FORMATS = {
     landscape: { css: { width: 1280, height: 720 }, scale: 1.5 },
-    portrait: { css: { width: 720, height: 1080 }, scale: 1.5 }
+    portrait: { css: { width: 720, height: 1080 }, scale: 1.5 },
+    // Not a listing format: the smallest phone the HUD has to read on, with a touchscreen, so
+    // the game shows its on-screen stick and trigger. Only screenshots.js uses it.
+    phone: { css: { width: 360, height: 640 }, scale: 2, touch: true }
 };
 
 const FPS = 60;
@@ -70,9 +73,10 @@ function connect(url) {
 
 /**
  * [dry] draws at 1x: a dry run keeps no frames, and the game's rules do not care how sharply
- * it is drawn, so a seed behaves the same at either scale.
+ * it is drawn, so a seed behaves the same at either scale. [scale] overrides the format's
+ * density outright, for screenshots that should come out at the CSS size.
  */
-async function launch({ format, port = 8130, debugPort = 9333, dry = false }) {
+async function launch({ format, port = 8130, debugPort = 9333, dry = false, scale }) {
     const size = FORMATS[format];
     if (!size) throw new Error(`unknown format ${format}; expected ${Object.keys(FORMATS).join(" or ")}`);
     const gameUrl = `http://localhost:${port}/webApp/build/dist/wasmJs/productionExecutable/index.html`;
@@ -155,6 +159,24 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false }) {
          * route's run live, its seed fixed, nothing left to chance.
          */
         async enterTake({ mode, seed }) {
+            await session.openMenu({ seed });
+            await evaluate(`ironroostCapture.begin(${JSON.stringify(mode)})`, false);
+            for (let idled = 0; ; idled += 15) {
+                const state = await evaluate("ironroostCapture.beginState", false);
+                if (state.done) {
+                    if (state.error) throw new Error(state.error);
+                    break;
+                }
+                if (idled > FPS * 60) throw new Error(`the ${mode} run never started`);
+                await evaluate("ironroostCapture.idle(15)");
+            }
+        },
+
+        /**
+         * (Re)loads the game on the virtual clock and stops on the menu with the clock held and
+         * the dice fixed: the first screen a player sees, and where every run starts from.
+         */
+        async openMenu({ seed }) {
             await client.send("Page.reload", { ignoreCache: true });
             for (let attempt = 0; ; attempt++) {
                 if (attempt > 100) throw new Error("the game page never finished loading");
@@ -182,16 +204,6 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false }) {
             // From here on nothing moves unless it is stepped, so the run starts on the same
             // frame, with the same dice, every time.
             await evaluate(`ironroostCapture.hold(${Number(seed) | 0})`, false);
-            await evaluate(`ironroostCapture.begin(${JSON.stringify(mode)})`, false);
-            for (let idled = 0; ; idled += 15) {
-                const state = await evaluate("ironroostCapture.beginState", false);
-                if (state.done) {
-                    if (state.error) throw new Error(state.error);
-                    break;
-                }
-                if (idled > FPS * 60) throw new Error(`the ${mode} run never started`);
-                await evaluate("ironroostCapture.idle(15)");
-            }
         }
     };
 
@@ -200,9 +212,12 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false }) {
     await client.send("Emulation.setDeviceMetricsOverride", {
         width: size.css.width,
         height: size.css.height,
-        deviceScaleFactor: dry ? 1 : size.scale,
-        mobile: false
+        deviceScaleFactor: scale ?? (dry ? 1 : size.scale),
+        mobile: Boolean(size.touch)
     });
+    // Takes effect from the next load, which is why openMenu reloads: portal.js decides between
+    // keyboard and touch controls, and the render density, as the page starts.
+    if (size.touch) await client.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     await client.send("Emulation.setUserAgentOverride", {
         userAgent: await evaluate("navigator.userAgent", false).catch(() => ""),
         acceptLanguage: "en-US"

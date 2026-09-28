@@ -66,7 +66,25 @@ falls at 30.4 s, which is why the endless window stops at 29.8.
 The routes reach their modes by clicking measured viewport fractions, because the menu is painted
 on a canvas with nothing to query. Those fractions live in `MENU` in `capture.js` and only cover
 the two capture sizes — **a menu change moves them.** `beginRun` checks which stage the engine
-actually loaded and throws rather than recording the wrong mode.
+actually loaded and throws rather than recording the wrong mode. The solo `campaign` mode probes
+down the centre column instead; it hides the keyboard from the menu while it does, so the probe
+cannot switch on two players on its way to New game.
+
+## Screenshots for before/after
+
+`screenshots.js` photographs the built game at fixed moments — menu, the stage-one card, six
+seconds into a solo run, the pause overlay — at 1280×720, 720×1080 and a 360×640 touch phone, on
+the same virtual clock and seed as the previews, so two builds can be compared picture for picture:
+
+```powershell
+node docs/crazygames/media/screenshots.js shoot before
+node docs/crazygames/media/screenshots.js shoot phase-1
+node docs/crazygames/media/screenshots.js compare before phase-1
+```
+
+Shots land in `docs/quality/screens/<label>/` and are committed; `compare` writes labelled pairs to
+`docs/quality/screens/<before>-vs-<after>/` (ignored by git, rebuilt on demand) and needs `ffmpeg`.
+`--formats` and `--views` take comma-separated subsets. Every format starts on a fresh profile.
 
 ### Why it is built this way
 

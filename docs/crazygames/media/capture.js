@@ -193,10 +193,32 @@
     async function startGame(target) {
         const started = gameplayStarted();
         for (let fraction = PROBE_FROM; fraction <= PROBE_TO; fraction += PROBE_STEP) {
+            // The game screen names its stage as soon as it opens. From then on the probe would
+            // only be tapping the stage card, which skips it; the card starts the run by itself.
+            if (portalEvents.stage !== null) break;
             click(target, Math.round(innerWidth * PROBE_X), Math.round(innerHeight * fraction));
             if (await within(started, 400)) return true;
         }
         return await within(started, 10000);
+    }
+
+    /*
+     * On the wide layout the first thing the probe meets going down the centre column is the
+     * "2 players" segment, which would turn a solo run into co-op. With the keyboard hidden the
+     * menu greys that segment out and drops back to one seat — the same thing it does on a phone —
+     * so the probe can only start a solo run. Only the menu reads the flag, polling it once a
+     * second, hence the wait; it is put back as soon as the run is under way.
+     */
+    async function withoutKeyboard(action) {
+        const portal = window.ironroostPortal;
+        const own = Object.getOwnPropertyDescriptor(portal, "hasPhysicalKeyboard");
+        Object.defineProperty(portal, "hasPhysicalKeyboard", { get: () => false, configurable: true });
+        try {
+            await sleep(1100);
+            return await action();
+        } finally {
+            Object.defineProperty(portal, "hasPhysicalKeyboard", own);
+        }
     }
 
     /** Menu coordinates for this viewport, with two players picked, or an error saying why not. */
@@ -217,8 +239,8 @@
     /**
      * Gets from the menu to a playable stage; the take starts once this resolves.
      *
-     * `campaign` is a solo run of stage one. `endless-coop` is two tanks on one keyboard in
-     * the endless arena, with its waves and upgrade cards. `campaign-coop` is the same two
+     * `campaign` is a solo run of stage one, the run a first visit starts with. `endless-coop`
+     * is two tanks on one keyboard in the endless arena, with its waves and upgrade cards. `campaign-coop` is the same two
      * tanks on CAMPAIGN_STAGE, for the other half of the game.
      */
     async function beginRun(mode) {
@@ -264,7 +286,7 @@
                 );
             }
         } else if (mode === "campaign") {
-            if (!await startGame(target)) throw new Error("could not get past the menu");
+            if (!await withoutKeyboard(() => startGame(target))) throw new Error("could not get past the menu");
         } else {
             throw new Error(`unknown route mode ${mode}`);
         }
@@ -367,6 +389,13 @@
         /** Steps [frames] frames outside the take, for the menu and the stage card. */
         async idle(frames) {
             for (let i = 0; i < frames; i++) await grabber.clock.step();
+        },
+
+        /** Taps one of KEYS the way a player would: the pause key, say. */
+        press(name) {
+            key(grabber.target, name, "keydown");
+            key(grabber.target, name, "keyup");
+            return true;
         },
 
         /** Starts getting to the stage; poll [beginState] while idling the clock forward. */

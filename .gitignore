@@ -21,3 +21,7 @@ node_modules/
 # Working files from the listing-media pipeline. The delivered covers and previews are
 # committed; the capture manifests point at throwaway temp folders of frames.
 docs/crazygames/media/capture-*.json
+
+# Before/after composites from screenshots.js compare; the labelled shots they are built from
+# are committed and regenerate them.
+docs/quality/screens/*-vs-*/
