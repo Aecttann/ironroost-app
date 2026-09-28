@@ -44,6 +44,8 @@
     <string name="about_body">一款带有 1980 年代主机街机气质的原创坦克游戏。所有美术、音效和 35 张关卡地图均为本项目原创，没有取自其他游戏。</string>
     <string name="about_stages">%1$d 关卡</string>
     <string name="about_version">版本 %1$s</string>
+    <string name="about_credits_title">致谢</string>
+    <string name="about_credit_font">字体：Pixelify Sans，作者 Stefie Justprince，采用 SIL Open Font License 1.1，改编为 Ironroost Pixel。</string>
     <string name="common_back">返回</string>
     <string name="common_cancel">取消</string>
     <string name="common_reset">重置</string>

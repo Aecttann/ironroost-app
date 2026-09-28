@@ -44,6 +44,8 @@
     <string name="about_body">Оригінальна гра про танки в дусі консольних аркад 1980-х. Уся графіка, звуки й 35 карт створені для цього проєкту — нічого не взято з інших ігор.</string>
     <string name="about_stages">%1$d рівнів</string>
     <string name="about_version">Версія %1$s</string>
+    <string name="about_credits_title">Подяки</string>
+    <string name="about_credit_font">Шрифт: Pixelify Sans від Stefie Justprince, ліцензія SIL Open Font License 1.1, адаптований як Ironroost Pixel.</string>
     <string name="common_back">Назад</string>
     <string name="common_cancel">Скасувати</string>
     <string name="common_reset">Скинути</string>

@@ -44,6 +44,8 @@
     <string name="about_body">1980\'lerin konsol atari oyunları ruhunda özgün bir tank oyunu. Tüm grafikler, sesler ve 35 bölüm bu proje için hazırlandı — hiçbiri başka bir oyundan alınmadı.</string>
     <string name="about_stages">%1$d bölüm</string>
     <string name="about_version">Sürüm %1$s</string>
+    <string name="about_credits_title">Emeği geçenler</string>
+    <string name="about_credit_font">Yazı tipi: Stefie Justprince imzalı Pixelify Sans, SIL Open Font License 1.1, Ironroost Pixel olarak uyarlandı.</string>
     <string name="common_back">Geri</string>
     <string name="common_cancel">Vazgeç</string>
     <string name="common_reset">Sıfırla</string>

@@ -44,6 +44,8 @@
     <string name="about_body">1980년대 콘솔 아케이드의 감성을 담은 오리지널 탱크 게임입니다. 모든 그래픽과 사운드, 35개 스테이지는 이 프로젝트를 위해 제작되었으며 다른 게임에서 가져온 것은 없습니다.</string>
     <string name="about_stages">%1$d 스테이지</string>
     <string name="about_version">버전 %1$s</string>
+    <string name="about_credits_title">크레딧</string>
+    <string name="about_credit_font">글꼴: Stefie Justprince의 Pixelify Sans, SIL Open Font License 1.1, Ironroost Pixel로 수정.</string>
     <string name="common_back">뒤로</string>
     <string name="common_cancel">취소</string>
     <string name="common_reset">초기화</string>

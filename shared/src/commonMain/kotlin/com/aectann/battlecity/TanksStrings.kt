@@ -96,6 +96,8 @@ import battlecity.shared.generated.resources.about_body
 import battlecity.shared.generated.resources.about_title
 import battlecity.shared.generated.resources.about_stages
 import battlecity.shared.generated.resources.about_version
+import battlecity.shared.generated.resources.about_credits_title
+import battlecity.shared.generated.resources.about_credit_font
 import battlecity.shared.generated.resources.common_back
 import battlecity.shared.generated.resources.common_cancel
 import battlecity.shared.generated.resources.common_off
@@ -218,6 +220,8 @@ object TanksStrings {
     val aboutBody: StringResource = Res.string.about_body
     val aboutStages: StringResource = Res.string.about_stages
     val aboutVersion: StringResource = Res.string.about_version
+    val aboutCreditsTitle: StringResource = Res.string.about_credits_title
+    val aboutCreditFont: StringResource = Res.string.about_credit_font
     val commonBack: StringResource = Res.string.common_back
     val commonCancel: StringResource = Res.string.common_cancel
     val commonOn: StringResource = Res.string.common_on

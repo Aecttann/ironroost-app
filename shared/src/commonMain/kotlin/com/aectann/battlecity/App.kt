@@ -1,12 +1,12 @@
 package com.aectann.battlecity
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,9 +27,12 @@ import com.aectann.battlecity.ui.AboutScreen
 import com.aectann.battlecity.ui.CollectionScreen
 import com.aectann.battlecity.ui.DailyRewardScreen
 import com.aectann.battlecity.ui.LeaderboardScreen
+import com.aectann.battlecity.ui.LocalTanksSound
 import com.aectann.battlecity.ui.MenuScreen
+import com.aectann.battlecity.ui.PixelTheme
 import com.aectann.battlecity.ui.SettingsScreen
 import com.aectann.battlecity.ui.TanksGameScreen
+import com.aectann.battlecity.ui.TanksSoundBank
 import kotlinx.coroutines.delay
 
 private val TankColors = darkColorScheme(
@@ -55,9 +58,10 @@ private enum class Destination {
     About
 }
 
+/** The pixel UI's theme: Ironroost Pixel, the block materials, keyboard focus. See `ui/PixelTheme.kt`. */
 @Composable
 fun TanksTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = TankColors, content = content)
+    PixelTheme(colorScheme = TankColors, content = content)
 }
 
 /**
@@ -141,6 +145,21 @@ fun App(
             runCatching { TanksAssets.load() }.onSuccess { assets = it }
         }
 
+        // One clip player for the whole app, so the menus click like the game does. On the web
+        // there is only one audio bank per page, and a second player releasing it would silence
+        // the other.
+        val sound = remember { TanksSoundBank() }
+        LaunchedEffect(platform) {
+            sound.install(platform.createSoundPlayer(TanksResources.loadSoundBank(), session.soundEnabled))
+        }
+        DisposableEffect(sound) { onDispose { sound.release() } }
+        LaunchedEffect(session.soundEnabled, session.resurrectionInProgress, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
+            sound.setEnabled(
+                session.soundEnabled && !session.resurrectionInProgress &&
+                    !adsState.fullScreenShowing && !adsState.privacyOptionsBusy
+            )
+        }
+
         LaunchedEffect(platform.portal, session.highestCompletedStage) {
             platform.portal.reportProgress(
                 completedStage = session.highestCompletedStage,
@@ -148,92 +167,94 @@ fun App(
             )
         }
 
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f)) {
-                when (destination) {
-                    Destination.Menu -> MenuScreen(
-                        highestCompletedStage = session.highestCompletedStage,
-                        titleSprite = assets?.menuTankSprite(),
-                        dailyClaimable = meta.daily.availability == TanksDailyAvailability.Claimable,
-                        collectionUnlocked = meta.collectionUnlocked,
-                        collectionTotal = meta.collectionTotal,
-                        bestEndlessWave = meta.stats.bestEndlessWave,
-                        playerCount = seats,
-                        coopAvailable = coopAvailable,
-                        onPlayerCountChange = { playerCount = it },
-                        onDaily = { destination = Destination.Daily },
-                        onCollection = { destination = Destination.Collection },
-                        onLeaderboard = { destination = Destination.Leaderboard },
-                        onNewGame = {
-                            viewModel.selectStage(1, seats)
-                            destination = Destination.Game
-                        },
-                        onContinue = {
-                            val next = (session.highestCompletedStage + 1).coerceAtMost(BattleCityMaxStage)
-                            viewModel.selectStage(next, seats)
-                            destination = Destination.Game
-                        },
-                        onEndless = {
-                            viewModel.startEndless(seats)
-                            destination = Destination.Game
-                        },
-                        onSettings = { destination = Destination.Settings },
-                        onAbout = { destination = Destination.About }
-                    )
-
-                    Destination.Game -> TanksGameScreen(
-                        platform = platform,
-                        viewModel = viewModel,
-                        assets = assets,
-                        ads = ads,
-                        onExitToMenu = {
-                            viewModel.finishLostRun()
-                            viewModel.pause()
-                            destination = Destination.Menu
-                        }
-                    )
-
-                    Destination.Daily -> DailyRewardScreen(
-                        meta = meta,
-                        onClaim = viewModel::claimDaily,
-                        onBack = { if (!session.streakFreezeInProgress) destination = Destination.Menu },
-                        supportsStreakFreeze = ads.supportsStreakFreeze,
-                        adState = adsState,
-                        freezeInProgress = session.streakFreezeInProgress,
-                        freezeResult = session.streakFreezeResult,
-                        onFreeze = { viewModel.earnStreakFreezeWithAd(ads) }
-                    )
-
-                    Destination.Collection -> CollectionScreen(
-                        meta = meta,
-                        assets = assets,
-                        onBack = { destination = Destination.Menu }
-                    )
-
-                    Destination.Leaderboard -> LeaderboardScreen(
-                        meta = meta,
-                        onNicknameChange = viewModel::setNickname,
-                        onBack = { destination = Destination.Menu }
-                    )
-
-                    Destination.Settings -> SettingsScreen(
-                        soundEnabled = session.soundEnabled,
-                        onSoundToggled = viewModel::setSoundEnabled,
-                        onResetProgress = viewModel::resetProgress,
-                        privacyOptionsRequired = adsState.privacyOptionsRequired,
-                        privacyOptionsBusy = adsState.privacyOptionsBusy,
-                        privacyOptionsFailed = adsState.privacyOptionsFailed,
-                        onPrivacyOptions = ads::showPrivacyOptions,
-                        onBack = { destination = Destination.Menu }
-                    )
-
-                    Destination.About -> AboutScreen(
-                        appVersion = platform.appVersion,
-                        onBack = { destination = Destination.Menu }
-                    )
+        CompositionLocalProvider(LocalTanksSound provides sound) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
+                    when (destination) {
+                        Destination.Menu -> MenuScreen(
+                            highestCompletedStage = session.highestCompletedStage,
+                            titleSprite = assets?.menuTankSprite(),
+                            dailyClaimable = meta.daily.availability == TanksDailyAvailability.Claimable,
+                            collectionUnlocked = meta.collectionUnlocked,
+                            collectionTotal = meta.collectionTotal,
+                            bestEndlessWave = meta.stats.bestEndlessWave,
+                            playerCount = seats,
+                            coopAvailable = coopAvailable,
+                            onPlayerCountChange = { playerCount = it },
+                            onDaily = { destination = Destination.Daily },
+                            onCollection = { destination = Destination.Collection },
+                            onLeaderboard = { destination = Destination.Leaderboard },
+                            onNewGame = {
+                                viewModel.selectStage(1, seats)
+                                destination = Destination.Game
+                            },
+                            onContinue = {
+                                val next = (session.highestCompletedStage + 1).coerceAtMost(BattleCityMaxStage)
+                                viewModel.selectStage(next, seats)
+                                destination = Destination.Game
+                            },
+                            onEndless = {
+                                viewModel.startEndless(seats)
+                                destination = Destination.Game
+                            },
+                            onSettings = { destination = Destination.Settings },
+                            onAbout = { destination = Destination.About }
+                        )
+    
+                        Destination.Game -> TanksGameScreen(
+                            platform = platform,
+                            viewModel = viewModel,
+                            assets = assets,
+                            ads = ads,
+                            onExitToMenu = {
+                                viewModel.finishLostRun()
+                                viewModel.pause()
+                                destination = Destination.Menu
+                            }
+                        )
+    
+                        Destination.Daily -> DailyRewardScreen(
+                            meta = meta,
+                            onClaim = viewModel::claimDaily,
+                            onBack = { if (!session.streakFreezeInProgress) destination = Destination.Menu },
+                            supportsStreakFreeze = ads.supportsStreakFreeze,
+                            adState = adsState,
+                            freezeInProgress = session.streakFreezeInProgress,
+                            freezeResult = session.streakFreezeResult,
+                            onFreeze = { viewModel.earnStreakFreezeWithAd(ads) }
+                        )
+    
+                        Destination.Collection -> CollectionScreen(
+                            meta = meta,
+                            assets = assets,
+                            onBack = { destination = Destination.Menu }
+                        )
+    
+                        Destination.Leaderboard -> LeaderboardScreen(
+                            meta = meta,
+                            onNicknameChange = viewModel::setNickname,
+                            onBack = { destination = Destination.Menu }
+                        )
+    
+                        Destination.Settings -> SettingsScreen(
+                            soundEnabled = session.soundEnabled,
+                            onSoundToggled = viewModel::setSoundEnabled,
+                            onResetProgress = viewModel::resetProgress,
+                            privacyOptionsRequired = adsState.privacyOptionsRequired,
+                            privacyOptionsBusy = adsState.privacyOptionsBusy,
+                            privacyOptionsFailed = adsState.privacyOptionsFailed,
+                            onPrivacyOptions = ads::showPrivacyOptions,
+                            onBack = { destination = Destination.Menu }
+                        )
+    
+                        Destination.About -> AboutScreen(
+                            appVersion = platform.appVersion,
+                            onBack = { destination = Destination.Menu }
+                        )
+                    }
                 }
+                if (destination != Destination.Game) menuBanner()
             }
-            if (destination != Destination.Game) menuBanner()
         }
 
         PlatformBackHandler(enabled = destination != Destination.Menu && destination != Destination.Game) {

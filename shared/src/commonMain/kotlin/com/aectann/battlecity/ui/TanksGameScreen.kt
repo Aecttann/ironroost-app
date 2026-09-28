@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -26,14 +28,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,6 +57,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -117,6 +116,37 @@ import kotlin.math.roundToInt
 private const val FirstStageCardMillis = 3600L
 private const val StageCardMillis = 1500L
 
+/**
+ * Which keys are down, and which of them were already down when the run stopped for an overlay.
+ *
+ * Those belong to the run. A trigger still held as the stage ends keeps auto-repeating, and each
+ * repeat is a fresh key-down: left alone, one would press whatever button the overlay opened on.
+ * Plain fields, like the held input — only the key handler reads them, and it notices the switch
+ * to an overlay itself, before counting the event that arrived, so not even the first repeat
+ * slips through.
+ */
+private class RunKeys {
+    private val down = mutableSetOf<Key>()
+    private val fromRun = mutableSetOf<Key>()
+    private var overlay = false
+
+    fun track(event: KeyEvent, overlayUp: Boolean) {
+        if (overlayUp != overlay) {
+            overlay = overlayUp
+            fromRun.clear()
+            if (overlayUp) fromRun.addAll(down)
+        }
+        if (event.type == KeyEventType.KeyDown) down += event.key else if (event.type == KeyEventType.KeyUp) down -= event.key
+    }
+
+    /** True for a key held over from the run; it stops counting as one once released. */
+    fun heldOverFromRun(event: KeyEvent): Boolean {
+        if (event.key !in fromRun) return false
+        if (event.type == KeyEventType.KeyUp) fromRun -= event.key
+        return true
+    }
+}
+
 /** The start/pause button is meaningless once a run has ended. */
 private fun startButtonVisible(phase: TanksPhase): Boolean =
     phase == TanksPhase.Playing || phase == TanksPhase.Paused || phase == TanksPhase.Ready
@@ -137,7 +167,10 @@ fun TanksGameScreen(
     val renderState by viewModel.render.collectAsState()
     val adsState by ads.state.collectAsState()
 
-    val sound = remember { TanksSoundBank() }
+    // The app's shared player when there is one; a host that embeds only this screen gets one
+    // owned here, loaded and released with the screen as before.
+    val appSound = LocalTanksSound.current
+    val sound = appSound ?: remember { TanksSoundBank() }
     // One holder per seat. The on-screen pad only ever drives player one: co-op is a keyboard
     // feature, and two joysticks on one phone screen is not a control scheme.
     val heldInput = remember { TanksHeldInput() }
@@ -165,18 +198,25 @@ fun TanksGameScreen(
         }
     }
 
-    LaunchedEffect(platform) {
-        val clips = TanksResources.loadSoundBank()
-        sound.install(platform.createSoundPlayer(clips, session.soundEnabled))
-    }
+    if (appSound == null) {
+        LaunchedEffect(platform) {
+            val clips = TanksResources.loadSoundBank()
+            sound.install(platform.createSoundPlayer(clips, session.soundEnabled))
+        }
 
-    LaunchedEffect(session.soundEnabled, session.resurrectionInProgress, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
-        sound.setEnabled(session.soundEnabled && !session.resurrectionInProgress &&
-            !adsState.fullScreenShowing && !adsState.privacyOptionsBusy)
-    }
+        LaunchedEffect(session.soundEnabled, session.resurrectionInProgress, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
+            sound.setEnabled(session.soundEnabled && !session.resurrectionInProgress &&
+                !adsState.fullScreenShowing && !adsState.privacyOptionsBusy)
+        }
 
-    DisposableEffect(sound) {
-        onDispose { sound.release() }
+        DisposableEffect(sound) {
+            onDispose { sound.release() }
+        }
+    } else {
+        // The shared player outlives the screen; only the engine loop has to stop with it.
+        DisposableEffect(sound) {
+            onDispose { sound.setEngineRunning(false) }
+        }
     }
 
     DisposableEffect(platform) {
@@ -291,217 +331,225 @@ fun TanksGameScreen(
         }
     }
 
-    // Overlays sit above the whole screen rather than inside the board. In landscape the board
-    // is only as tall as the window, and a pause menu drawn inside it loses its bottom rows.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ScreenBackground)
-            .onPreviewKeyEvent { event ->
-                val steering = directionForKey(event.key, isCoop)
-                val fireSeat = fireSeatForKey(event.key, isCoop)
-                val playing = session.phase == TanksPhase.Playing
-                when {
-                    // Any key dismisses the stage card. Checked before steering so that the very
-                    // key a player reaches for — a direction — is the one that starts the run,
-                    // instead of being swallowed while the card waits out its timer.
-                    session.phase == TanksPhase.Ready && event.type == KeyEventType.KeyDown -> {
-                        startRun()
-                        true
-                    }
+    val menuPhase = session.phase != TanksPhase.Playing && session.phase != TanksPhase.Ready
+    val runKeys = remember { RunKeys() }
 
-                    steering != null -> {
-                        val (seat, direction) = steering
-                        val held = if (seat == 0) heldInput else secondHeldInput
-                        if (event.type == KeyEventType.KeyDown && playing) {
-                            held.pressKey(direction)
-                        } else if (event.type == KeyEventType.KeyUp) {
-                            held.releaseKey(direction)
+    CompositionLocalProvider(LocalTanksSound provides sound) {
+        // Overlays sit above the whole screen rather than inside the board. In landscape the board
+        // is only as tall as the window, and a pause menu drawn inside it loses its bottom rows.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ScreenBackground)
+                .onPreviewKeyEvent { event ->
+                    runKeys.track(event, menuPhase)
+                    val steering = directionForKey(event.key, isCoop)
+                    val fireSeat = fireSeatForKey(event.key, isCoop)
+                    val playing = session.phase == TanksPhase.Playing
+                    when {
+                        // Any key dismisses the stage card. Checked before steering so that the very
+                        // key a player reaches for — a direction — is the one that starts the run,
+                        // instead of being swallowed while the card waits out its timer.
+                        session.phase == TanksPhase.Ready && event.type == KeyEventType.KeyDown -> {
+                            startRun()
+                            true
                         }
-                        true
-                    }
 
-                    fireSeat != null -> {
-                        val held = if (fireSeat == 0) heldInput else secondHeldInput
-                        held.setKeyboardFire(event.type == KeyEventType.KeyDown && playing)
-                        true
-                    }
+                        // A key held over from the run is swallowed until it is let go.
+                        runKeys.heldOverFromRun(event) -> true
 
-                    event.key == Key.P -> {
-                        if (event.type == KeyEventType.KeyUp) {
+                        // With an overlay up the keys are the overlay's: arrows and WASD move its
+                        // cursor, Enter and Space press its buttons (pixelMenuKeys, PixelBlockButton).
+                        menuPhase && event.key != Key.P -> false
+
+                        steering != null -> {
+                            val (seat, direction) = steering
+                            val held = if (seat == 0) heldInput else secondHeldInput
+                            if (event.type == KeyEventType.KeyDown && playing) {
+                                held.pressKey(direction)
+                            } else if (event.type == KeyEventType.KeyUp) {
+                                held.releaseKey(direction)
+                            }
+                            true
+                        }
+
+                        fireSeat != null -> {
+                            val held = if (fireSeat == 0) heldInput else secondHeldInput
+                            held.setKeyboardFire(event.type == KeyEventType.KeyDown && playing)
+                            true
+                        }
+
+                        event.key == Key.P -> {
+                            if (event.type == KeyEventType.KeyUp) {
+                                sound.play(TanksClip.MenuSelect)
+                                viewModel.togglePause()
+                            }
+                            true
+                        }
+
+                        else -> false
+                    }
+                }
+                .onFocusChanged { state ->
+                    boardHasFocus = state.hasFocus
+                    if (!state.hasFocus) {
+                        // Both seats: the browser sends no key-up for keys held when focus left, so
+                        // whichever player was moving would otherwise drive into a wall forever.
+                        heldInput.releaseKeyboard()
+                        secondHeldInput.releaseKeyboard()
+                    }
+                }
+                .focusRequester(focusRequester)
+                .focusable()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeContentPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TanksHud(
+                    state = renderState,
+                    stage = session.stage,
+                    campaignScore = session.campaignScore,
+                    isCoop = isCoop,
+                    isEndless = session.isEndless,
+                    assets = assets
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val loadedAssets = assets
+                when {
+                    session.phase == TanksPhase.Error -> TanksMessagePanel(
+                        title = stringResource(TanksStrings.errorMessage, session.errorMessage.orEmpty()),
+                        actionText = stringResource(TanksStrings.retry),
+                        onAction = { viewModel.retryLoad() }
+                    )
+
+                    loadedAssets == null || renderState == null -> TanksLoadingPanel()
+
+                    else -> TanksPlayArea(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        state = renderState!!,
+                        assets = loadedAssets,
+                        animationFrame = animationFrame,
+                        activeDirection = heldInput.visibleDirection,
+                        isRunning = session.phase == TanksPhase.Playing,
+                        showStartButton = startButtonVisible(session.phase),
+                        // Re-read on every recomposition rather than remembered: the browser bridge
+                        // only learns the device is touch when a finger actually lands, and the
+                        // per-frame animation tick brings the answer in within a frame of that.
+                        touchControls = platform.usesTouchControls,
+                        isFirePressed = heldInput.visibleFirePressed,
+                        onDirectionChanged = heldInput::setPointerDirection,
+                        onFirePressedChanged = heldInput::setPointerFire,
+                        onStartPause = {
                             sound.play(TanksClip.MenuSelect)
                             viewModel.togglePause()
                         }
-                        true
-                    }
-
-                    else -> false
+                    )
                 }
             }
-            .onFocusChanged { state ->
-                boardHasFocus = state.hasFocus
-                if (!state.hasFocus) {
-                    // Both seats: the browser sends no key-up for keys held when focus left, so
-                    // whichever player was moving would otherwise drive into a wall forever.
-                    heldInput.releaseKeyboard()
-                    secondHeldInput.releaseKeyboard()
+
+            when (session.phase) {
+                TanksPhase.Ready -> TanksStageCard(
+                    stage = session.stage,
+                    isCoop = isCoop,
+                    isEndless = session.isEndless,
+                    // Starting the run flips the phase, which cancels the effect still counting the
+                    // card's hold down — so the skip needs no flag of its own.
+                    onSkip = startRun
+                )
+
+                // The overlays' buttons click for themselves (PixelBlockButton).
+                TanksPhase.Paused -> TanksPauseOverlay(
+                    soundEnabled = session.soundEnabled,
+                    onResume = { viewModel.togglePause() },
+                    onRestartStage = { viewModel.restartStage() },
+                    onOpenStages = { showStageSelector = true },
+                    onSoundToggled = { viewModel.setSoundEnabled(it) },
+                    onExitToMenu = requestExitToMenu,
+                    // Closing the stage list or the exit question hands focus back to the pause
+                    // menu, which would otherwise be left with none and deaf to the keys.
+                    dialogOpen = showStageSelector || showExitConfirm
+                )
+
+                TanksPhase.StageCleared -> session.summary?.let { summary ->
+                    TanksSummaryOverlay(summary) { viewModel.advanceToNextStage() }
                 }
-            }
-            .focusRequester(focusRequester)
-            .focusable()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeContentPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            TanksHud(
-                state = renderState,
-                stage = session.stage,
-                campaignScore = session.campaignScore,
-                isCoop = isCoop,
-                isEndless = session.isEndless,
-                assets = assets
-            )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val loadedAssets = assets
-            when {
-                session.phase == TanksPhase.Error -> TanksMessagePanel(
-                    title = stringResource(TanksStrings.errorMessage, session.errorMessage.orEmpty()),
-                    actionText = stringResource(TanksStrings.retry),
-                    onAction = { viewModel.retryLoad() }
+                TanksPhase.WaveCleared -> TanksUpgradePicker(
+                    wave = session.wave,
+                    choices = session.upgradeChoices,
+                    loadout = session.loadout,
+                    onChoose = { upgrade -> viewModel.chooseUpgrade(upgrade) }
                 )
 
-                loadedAssets == null || renderState == null -> TanksLoadingPanel()
-
-                else -> TanksPlayArea(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    state = renderState!!,
-                    assets = loadedAssets,
-                    animationFrame = animationFrame,
-                    activeDirection = heldInput.visibleDirection,
-                    isRunning = session.phase == TanksPhase.Playing,
-                    showStartButton = startButtonVisible(session.phase),
-                    // Re-read on every recomposition rather than remembered: the browser bridge
-                    // only learns the device is touch when a finger actually lands, and the
-                    // per-frame animation tick brings the answer in within a frame of that.
-                    touchControls = platform.usesTouchControls,
-                    isFirePressed = heldInput.visibleFirePressed,
-                    onDirectionChanged = heldInput::setPointerDirection,
-                    onFirePressedChanged = heldInput::setPointerFire,
-                    onStartPause = {
-                        sound.play(TanksClip.MenuSelect)
-                        viewModel.togglePause()
-                    }
+                TanksPhase.GameOver -> TanksGameOverOverlay(
+                    campaignScore = session.campaignScore + (renderState?.stageScore ?: 0),
+                    endlessWave = session.wave.takeIf { session.isEndless },
+                    canResurrect = session.canResurrect,
+                    isCoop = session.isCoop,
+                    adAvailability = adsState.resurrection,
+                    adCooldownSeconds = adsState.resurrectionCooldownSeconds,
+                    resurrectionInProgress = session.resurrectionInProgress,
+                    resurrectionResult = session.resurrectionResult,
+                    onResurrect = { viewModel.resurrectWithAd(ads) },
+                    onRetry = { viewModel.retryAfterLoss() },
+                    onExitToMenu = onExitToMenu
                 )
+
+                else -> Unit
             }
         }
 
-        when (session.phase) {
-            TanksPhase.Ready -> TanksStageCard(
-                stage = session.stage,
-                isCoop = isCoop,
-                isEndless = session.isEndless,
-                // Starting the run flips the phase, which cancels the effect still counting the
-                // card's hold down — so the skip needs no flag of its own.
-                onSkip = startRun
-            )
-
-            TanksPhase.Paused -> TanksPauseOverlay(
-                soundEnabled = session.soundEnabled,
-                onResume = {
-                    sound.play(TanksClip.MenuSelect)
-                    viewModel.togglePause()
+        if (showStageSelector) {
+            TanksStageSelectorDialog(
+                selectedStage = session.stage,
+                stageInfos = session.stageInfos,
+                highestCompletedStage = session.highestCompletedStage,
+                unlockedStage = viewModel.unlockedStage(),
+                allStagesUnlocked = viewModel.isStageUnlocked(BattleCityMaxStage),
+                isUnlocked = viewModel::isStageUnlocked,
+                onStageSelected = { stage ->
+                    viewModel.selectStage(stage)
+                    showStageSelector = false
                 },
-                onRestartStage = {
-                    sound.play(TanksClip.MenuSelect)
-                    viewModel.restartStage()
-                },
-                onOpenStages = {
-                    sound.play(TanksClip.MenuSelect)
-                    showStageSelector = true
-                },
-                onSoundToggled = { viewModel.setSoundEnabled(it) },
-                onExitToMenu = requestExitToMenu
+                onDismiss = { showStageSelector = false }
             )
-
-            TanksPhase.StageCleared -> session.summary?.let { summary ->
-                TanksSummaryOverlay(summary) {
-                    sound.play(TanksClip.MenuSelect)
-                    viewModel.advanceToNextStage()
-                }
-            }
-
-            TanksPhase.WaveCleared -> TanksUpgradePicker(
-                wave = session.wave,
-                choices = session.upgradeChoices,
-                loadout = session.loadout,
-                onChoose = { upgrade ->
-                    sound.play(TanksClip.MenuSelect)
-                    viewModel.chooseUpgrade(upgrade)
-                }
-            )
-
-            TanksPhase.GameOver -> TanksGameOverOverlay(
-                campaignScore = session.campaignScore + (renderState?.stageScore ?: 0),
-                endlessWave = session.wave.takeIf { session.isEndless },
-                canResurrect = session.canResurrect,
-                isCoop = session.isCoop,
-                adAvailability = adsState.resurrection,
-                adCooldownSeconds = adsState.resurrectionCooldownSeconds,
-                resurrectionInProgress = session.resurrectionInProgress,
-                resurrectionResult = session.resurrectionResult,
-                onResurrect = { viewModel.resurrectWithAd(ads) },
-                onRetry = {
-                    sound.play(TanksClip.MenuSelect)
-                    viewModel.retryAfterLoss()
-                },
-                onExitToMenu = onExitToMenu
-            )
-
-            else -> Unit
         }
-    }
 
-    if (showStageSelector) {
-        TanksStageSelectorDialog(
-            selectedStage = session.stage,
-            stageInfos = session.stageInfos,
-            highestCompletedStage = session.highestCompletedStage,
-            unlockedStage = viewModel.unlockedStage(),
-            allStagesUnlocked = viewModel.isStageUnlocked(BattleCityMaxStage),
-            isUnlocked = viewModel::isStageUnlocked,
-            onStageSelected = { stage ->
-                sound.play(TanksClip.MenuSelect)
-                viewModel.selectStage(stage)
-                showStageSelector = false
-            },
-            onDismiss = { showStageSelector = false }
-        )
-    }
-
-    if (showExitConfirm) {
-        AlertDialog(
-            onDismissRequest = { showExitConfirm = false },
-            title = { Text(stringResource(TanksStrings.pauseExitTitle)) },
-            text = { Text(stringResource(TanksStrings.pauseExitQuestion)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showExitConfirm = false
-                    sound.play(TanksClip.MenuSelect)
-                    onExitToMenu()
-                }) { Text(stringResource(TanksStrings.pauseExitConfirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExitConfirm = false }) {
-                    Text(stringResource(TanksStrings.commonCancel))
+        if (showExitConfirm) {
+            // Staying is the safe answer, so it is the one Enter gives.
+            val stay = rememberInitialFocus()
+            PixelDialog(
+                title = stringResource(TanksStrings.pauseExitTitle),
+                onDismiss = { showExitConfirm = false },
+                buttons = {
+                    PixelButton(
+                        text = stringResource(TanksStrings.commonCancel),
+                        onClick = { showExitConfirm = false },
+                        material = PixelMaterial.Steel,
+                        focusRequester = stay
+                    )
+                    PixelButton(
+                        text = stringResource(TanksStrings.pauseExitConfirm),
+                        onClick = {
+                            showExitConfirm = false
+                            onExitToMenu()
+                        }
+                    )
                 }
+            ) {
+                Text(
+                    text = stringResource(TanksStrings.pauseExitQuestion),
+                    color = Color.White,
+                    textAlign = TextAlign.Center
+                )
             }
-        )
+        }
     }
 }
 
@@ -651,7 +699,7 @@ private fun IconStrip(image: ImageBitmap?, count: Int, tint: Color, maxIcons: In
 @Composable
 private fun SpriteIcon(image: ImageBitmap?, size: Dp, tint: Color) {
     if (image == null) {
-        Box(modifier = Modifier.size(size).background(tint, RoundedCornerShape(2.dp)))
+        Box(modifier = Modifier.size(size).background(tint))
         return
     }
     Canvas(modifier = Modifier.size(size)) {
@@ -961,21 +1009,25 @@ private fun DrawScope.drawSprite(
 
 // ----------------------------------------------------------------------- overlays
 
-/** Shared chrome so every full-screen overlay scrolls rather than clipping on short windows. */
+/**
+ * Shared chrome for the overlays over the board: a dark veil, a steel plate that scrolls inside
+ * rather than clipping on a short window, and the keys to move between its buttons.
+ */
 @Composable
-private fun FullScreenOverlay(content: @Composable () -> Unit) {
+private fun FullScreenOverlay(content: @Composable ColumnScope.() -> Unit) {
     Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xE6000000)),
+        modifier = Modifier.fillMaxSize().background(Color(0xD9000000)).pixelMenuKeys(),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier
-                .safeContentPadding()
-                .padding(20.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+        PixelPanel(
+            modifier = Modifier.safeContentPadding().padding(16.dp).widthIn(max = 560.dp),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 18.dp)
         ) {
-            content()
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                content = content
+            )
         }
     }
 }
@@ -1081,34 +1133,35 @@ private fun TanksUpgradePicker(
     loadout: TanksUpgradeLoadout,
     onChoose: (TanksUpgrade?) -> Unit
 ) {
+    // The first card, or the skip when a maxed-out build has nothing left to offer.
+    val first = rememberInitialFocus(choices)
     FullScreenOverlay {
-        Text(
-            text = stringResource(TanksStrings.upgradeTitle, wave),
-            color = AccentGold,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
+        PixelTitle(stringResource(TanksStrings.upgradeTitle, wave))
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(TanksStrings.upgradeSubtitle),
             color = MutedText,
-            fontSize = 13.sp
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        choices.forEach { upgrade ->
+        choices.forEachIndexed { index, upgrade ->
             UpgradeCard(
                 upgrade = upgrade,
                 currentLevel = loadout.levelOf(upgrade),
+                focusRequester = first.takeIf { index == 0 },
                 onClick = { onChoose(upgrade) }
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         Spacer(modifier = Modifier.height(4.dp))
-        TextButton(onClick = { onChoose(null) }) {
-            Text(stringResource(TanksStrings.upgradeSkip), color = MutedText)
-        }
+        PixelButton(
+            text = stringResource(TanksStrings.upgradeSkip),
+            onClick = { onChoose(null) },
+            material = PixelMaterial.Steel,
+            focusRequester = first.takeIf { choices.isEmpty() }
+        )
     }
 }
 
@@ -1116,13 +1169,17 @@ private fun TanksUpgradePicker(
 private fun UpgradeCard(
     upgrade: TanksUpgrade,
     currentLevel: Int,
+    focusRequester: FocusRequester?,
     onClick: () -> Unit
 ) {
-    OutlinedButton(
+    PixelBlockButton(
         onClick = onClick,
-        modifier = Modifier.widthIn(min = 260.dp).fillMaxWidth(0.85f)
+        modifier = Modifier.widthIn(min = 280.dp, max = 460.dp).fillMaxWidth(),
+        material = PixelMaterial.Steel,
+        focusRequester = focusRequester,
+        contentPadding = PaddingValues(start = 22.dp, end = 16.dp, top = 10.dp, bottom = 10.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1130,9 +1187,8 @@ private fun UpgradeCard(
             ) {
                 Text(
                     text = stringResource(TanksStrings.upgradeName(upgrade)),
-                    color = AccentGold,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
+                    color = GoldLight,
+                    style = LocalPixelType.current.label.shadowed()
                 )
                 // What a card is worth depends on what the run already holds, so the level it
                 // would move to is on the card rather than buried in the HUD.
@@ -1142,15 +1198,15 @@ private fun UpgradeCard(
                     } else {
                         stringResource(TanksStrings.upgradeLevel, currentLevel + 1)
                     },
-                    color = MutedText,
-                    fontSize = 12.sp
+                    color = Color.White,
+                    style = LocalPixelType.current.caption.shadowed()
                 )
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(TanksStrings.upgradeDescription(upgrade)),
                 color = Color.White,
-                fontSize = 12.sp
+                style = LocalPixelType.current.body.shadowed()
             )
         }
     }
@@ -1163,99 +1219,82 @@ private fun TanksPauseOverlay(
     onRestartStage: () -> Unit,
     onOpenStages: () -> Unit,
     onSoundToggled: (Boolean) -> Unit,
-    onExitToMenu: () -> Unit
+    onExitToMenu: () -> Unit,
+    /** The stage list or the exit question is open over this menu. */
+    dialogOpen: Boolean
 ) {
+    // Resume takes focus as the menu opens and again when a dialog over it closes.
+    val resume = rememberInitialFocus(key = dialogOpen, enabled = !dialogOpen)
     FullScreenOverlay {
-        Text(
+        PixelTitle(
             text = stringResource(TanksStrings.pause),
             color = Color.White,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
+            style = LocalPixelType.current.title
         )
         Spacer(modifier = Modifier.height(20.dp))
 
-        val buttonWidth = Modifier.widthIn(min = 240.dp)
-
-        Button(onClick = onResume, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.resume))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onRestartStage, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.restart))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onOpenStages, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.selectStage))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        // A labelled button rather than a bare switch: on a dark board the switch was easy to
-        // miss and its state was not obvious at a glance.
-        OutlinedButton(onClick = { onSoundToggled(!soundEnabled) }, modifier = buttonWidth) {
-            Text(
-                stringResource(TanksStrings.sound) + ": " +
-                    stringResource(if (soundEnabled) TanksStrings.commonOn else TanksStrings.commonOff)
+        PixelButtonColumn(Modifier.width(280.dp)) {
+            val wide = Modifier.fillMaxWidth()
+            PixelButton(stringResource(TanksStrings.resume), onResume, wide, focusRequester = resume)
+            PixelButton(stringResource(TanksStrings.restart), onRestartStage, wide)
+            PixelButton(stringResource(TanksStrings.selectStage), onOpenStages, wide, material = PixelMaterial.Steel)
+            // A labelled button rather than a bare switch: on a dark board the switch was easy
+            // to miss and its state was not obvious at a glance.
+            PixelButton(
+                text = stringResource(TanksStrings.sound) + ": " +
+                    stringResource(if (soundEnabled) TanksStrings.commonOn else TanksStrings.commonOff),
+                onClick = { onSoundToggled(!soundEnabled) },
+                modifier = wide,
+                material = PixelMaterial.Steel
             )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onExitToMenu, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.commonBack))
+            PixelButton(stringResource(TanksStrings.commonBack), onExitToMenu, wide, material = PixelMaterial.Steel)
         }
     }
 }
 
 @Composable
 private fun TanksSummaryOverlay(summary: TanksStageSummary, onNextStage: () -> Unit) {
+    val next = rememberInitialFocus()
     FullScreenOverlay {
-        Text(
-            text = stringResource(TanksStrings.summaryTitle, summary.stage),
-            color = AccentGold,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
+        PixelTitle(stringResource(TanksStrings.summaryTitle, summary.stage))
         Spacer(modifier = Modifier.height(14.dp))
 
-        summary.kills.forEach { row ->
-            Row(
-                modifier = Modifier.widthIn(min = 260.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = stringResource(TanksStrings.enemyName(row.type)),
-                    color = Color.White,
-                    fontSize = 13.sp
-                )
-                Text(
-                    text = "${row.count} x = ${row.points}",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
+        Column(modifier = Modifier.width(300.dp).pixelInset().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            summary.kills.forEach { row ->
+                SummaryRow(
+                    label = stringResource(TanksStrings.enemyName(row.type)),
+                    value = "${row.count} x = ${row.points}",
+                    labelColor = Color.White
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
         }
 
         Spacer(modifier = Modifier.height(10.dp))
-        SummaryRow(stringResource(TanksStrings.summaryStagePoints), summary.stageScore)
-        SummaryRow(stringResource(TanksStrings.summaryTotalPoints), summary.campaignScore)
-        SummaryRow(stringResource(TanksStrings.summaryLivesLeft), summary.livesLeft)
+        Column(modifier = Modifier.width(300.dp).padding(horizontal = 14.dp)) {
+            SummaryRow(stringResource(TanksStrings.summaryStagePoints), summary.stageScore.toString())
+            SummaryRow(stringResource(TanksStrings.summaryTotalPoints), summary.campaignScore.toString())
+            SummaryRow(stringResource(TanksStrings.summaryLivesLeft), summary.livesLeft.toString())
+        }
 
         Spacer(modifier = Modifier.height(18.dp))
-        Button(onClick = onNextStage, modifier = Modifier.widthIn(min = 240.dp)) {
-            Text(stringResource(TanksStrings.nextStage))
-        }
+        PixelButton(
+            text = stringResource(TanksStrings.nextStage),
+            onClick = onNextStage,
+            modifier = Modifier.width(280.dp),
+            focusRequester = next
+        )
     }
 }
 
 @Composable
-private fun SummaryRow(label: String, value: Int) {
+private fun SummaryRow(label: String, value: String, labelColor: Color = MutedText) {
     Row(
-        modifier = Modifier.widthIn(min = 260.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = MutedText, fontSize = 13.sp)
-        Text(text = value.toString(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(text = label, color = labelColor)
+        Text(text = value, color = Color.White, style = LocalPixelType.current.body.shadowed())
     }
-    Spacer(modifier = Modifier.height(3.dp))
 }
 
 @Composable
@@ -1272,47 +1311,40 @@ private fun TanksGameOverOverlay(
     onRetry: () -> Unit,
     onExitToMenu: () -> Unit
 ) {
+    val retry = rememberInitialFocus()
     FullScreenOverlay {
-        Text(
+        PixelTitle(
             text = stringResource(
                 if (endlessWave != null) TanksStrings.endlessOverTitle else TanksStrings.gameOver
             ),
             color = Color.White,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            style = LocalPixelType.current.title
         )
         if (endlessWave != null) {
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = stringResource(TanksStrings.endlessOverWave, endlessWave),
-                color = AccentGold,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+            PixelTitle(stringResource(TanksStrings.endlessOverWave, endlessWave))
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = stringResource(TanksStrings.score, campaignScore),
-            color = MutedText,
-            fontSize = 15.sp
+            color = MutedText
         )
         Spacer(modifier = Modifier.height(18.dp))
         if (canResurrect) {
             Text(
                 stringResource(if (isCoop) TanksStrings.resurrectionOfferCoop else TanksStrings.resurrectionOffer),
                 color = MutedText,
-                fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.widthIn(max = 360.dp)
             )
-            Spacer(Modifier.height(8.dp))
-            Button(
+            Spacer(Modifier.height(10.dp))
+            PixelButton(
+                text = stringResource(if (resurrectionInProgress) TanksStrings.resurrectionWatching else TanksStrings.resurrectionWatch),
                 onClick = onResurrect,
                 enabled = adAvailability == RewardedAdAvailability.Ready && !resurrectionInProgress,
-                modifier = Modifier.widthIn(min = 240.dp)
-            ) {
-                Text(stringResource(if (resurrectionInProgress) TanksStrings.resurrectionWatching else TanksStrings.resurrectionWatch))
-            }
+                modifier = Modifier.width(280.dp),
+                material = PixelMaterial.Gold
+            )
             val message = when {
                 resurrectionInProgress -> null
                 adAvailability == RewardedAdAvailability.CoolingDown -> TanksStrings.resurrectionCooldown
@@ -1324,16 +1356,26 @@ private fun TanksGameOverOverlay(
             }
             if (message != null) {
                 val text = if (message == TanksStrings.resurrectionCooldown) stringResource(message, adCooldownSeconds) else stringResource(message)
-                Text(text, color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(6.dp))
+                Text(text, color = MutedText, style = LocalPixelType.current.caption, textAlign = TextAlign.Center)
             }
             Spacer(Modifier.height(16.dp))
         }
-        Button(onClick = onRetry, enabled = !resurrectionInProgress, modifier = Modifier.widthIn(min = 240.dp)) {
-            Text(stringResource(TanksStrings.playAgain))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onExitToMenu, enabled = !resurrectionInProgress, modifier = Modifier.widthIn(min = 240.dp)) {
-            Text(stringResource(TanksStrings.commonBack))
+        PixelButtonColumn(Modifier.width(280.dp)) {
+            PixelButton(
+                text = stringResource(TanksStrings.playAgain),
+                onClick = onRetry,
+                enabled = !resurrectionInProgress,
+                modifier = Modifier.fillMaxWidth(),
+                focusRequester = retry
+            )
+            PixelButton(
+                text = stringResource(TanksStrings.commonBack),
+                onClick = onExitToMenu,
+                enabled = !resurrectionInProgress,
+                modifier = Modifier.fillMaxWidth(),
+                material = PixelMaterial.Steel
+            )
         }
     }
 }
@@ -1345,7 +1387,7 @@ private fun TanksLoadingPanel() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator()
+            PixelLoading()
             Spacer(modifier = Modifier.height(16.dp))
             Text(stringResource(TanksStrings.loading), color = Color.White)
         }
@@ -1354,14 +1396,15 @@ private fun TanksLoadingPanel() {
 
 @Composable
 private fun TanksMessagePanel(title: String, actionText: String, onAction: () -> Unit) {
+    val action = rememberInitialFocus()
     Box(
-        modifier = Modifier.fillMaxSize().background(ScreenBackground).padding(24.dp),
+        modifier = Modifier.fillMaxSize().background(ScreenBackground).padding(24.dp).pixelMenuKeys(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = title, color = Color.White, fontSize = 15.sp)
+            Text(text = title, color = Color.White, textAlign = TextAlign.Center)
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onAction) { Text(actionText) }
+            PixelButton(actionText, onAction, focusRequester = action)
         }
     }
 }
@@ -1587,54 +1630,61 @@ private fun TanksStageSelectorDialog(
     onStageSelected: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(TanksStrings.selectStageTitle)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = if (allStagesUnlocked) {
-                        stringResource(TanksStrings.allStagesAvailable)
-                    } else {
-                        stringResource(TanksStrings.highestCompletedStage, highestCompletedStage)
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                (1..BattleCityMaxStage).chunked(4).forEach { rowStages ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        rowStages.forEach { stage ->
-                            StageTile(
-                                modifier = Modifier.weight(1f),
-                                stage = stage,
-                                info = stageInfos[stage],
-                                isSelected = stage == selectedStage,
-                                isAvailable = isUnlocked(stage),
-                                onClick = { onStageSelected(stage) }
-                            )
-                        }
-                        repeat(4 - rowStages.size) { Spacer(modifier = Modifier.weight(1f)) }
+    // The list opens on the stage being played, so Enter on it is a restart and the arrows start
+    // from where the player already is.
+    val current = rememberInitialFocus()
+    PixelDialog(
+        title = stringResource(TanksStrings.selectStageTitle),
+        onDismiss = onDismiss,
+        buttons = {
+            PixelButton(stringResource(TanksStrings.close), onDismiss, material = PixelMaterial.Steel)
+        }
+    ) {
+        Text(
+            text = if (allStagesUnlocked) {
+                stringResource(TanksStrings.allStagesAvailable)
+            } else {
+                stringResource(TanksStrings.highestCompletedStage, highestCompletedStage)
+            },
+            color = MutedText,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(10.dp))
+        Column(
+            modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            (1..BattleCityMaxStage).chunked(4).forEach { rowStages ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowStages.forEach { stage ->
+                        StageTile(
+                            modifier = Modifier.weight(1f),
+                            stage = stage,
+                            info = stageInfos[stage],
+                            isSelected = stage == selectedStage,
+                            isAvailable = isUnlocked(stage),
+                            focusRequester = current.takeIf { stage == selectedStage },
+                            onClick = { onStageSelected(stage) }
+                        )
                     }
-                }
-
-                if (!allStagesUnlocked && unlockedStage < BattleCityMaxStage) {
-                    Text(
-                        text = stringResource(TanksStrings.lockedStagesHint),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    repeat(4 - rowStages.size) { Spacer(modifier = Modifier.weight(1f)) }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(TanksStrings.close)) }
         }
-    )
+
+        if (!allStagesUnlocked && unlockedStage < BattleCityMaxStage) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(TanksStrings.lockedStagesHint),
+                color = MutedText,
+                style = LocalPixelType.current.caption,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }
 
 @Composable
@@ -1644,50 +1694,53 @@ private fun StageTile(
     info: BattleCityStageInfo?,
     isSelected: Boolean,
     isAvailable: Boolean,
+    focusRequester: FocusRequester?,
     onClick: () -> Unit
 ) {
-    val borderColor = when {
-        isSelected -> AccentGold
-        isAvailable -> Color.White.copy(alpha = 0.35f)
-        else -> Color.White.copy(alpha = 0.12f)
-    }
-
-    Column(
-        modifier = modifier
-            .border(if (isSelected) 2.dp else 1.dp, borderColor, RoundedCornerShape(6.dp))
-            .padding(4.dp)
-            .then(
-                if (isAvailable) {
-                    Modifier.pointerInput(stage) { detectTapGestures(onTap = { onClick() }) }
-                } else {
-                    Modifier
+    PixelBlockButton(
+        onClick = onClick,
+        modifier = modifier,
+        material = if (isSelected) PixelMaterial.Brick else PixelMaterial.Steel,
+        enabled = isAvailable,
+        selected = isSelected,
+        focusRequester = focusRequester,
+        contentPadding = PaddingValues(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 4.dp),
+        minHeight = 0.dp
+    ) { color ->
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            StageMiniMap(
+                grid = info?.grid.orEmpty(),
+                dimmed = !isAvailable,
+                modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!isAvailable) {
+                    PixelIconImage(PixelIcons.Lock, color, cell = 1.dp)
+                    Spacer(Modifier.width(4.dp))
                 }
-            ),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        StageMiniMap(
-            grid = info?.grid.orEmpty(),
-            dimmed = !isAvailable,
-            modifier = Modifier.fillMaxWidth().aspectRatio(1f)
-        )
-        Text(
-            text = stage.toString(),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isAvailable) MaterialTheme.colorScheme.onSurface else Color.Gray
-        )
-        Text(
-            text = difficultyStars(info?.difficulty ?: 1),
-            fontSize = 9.sp,
-            color = if (isAvailable) AccentGold else Color.Gray
-        )
+                Text(text = stage.toString(), color = color, style = LocalPixelType.current.label.shadowed())
+            }
+            DifficultyStars(info?.difficulty ?: 1, lit = if (isAvailable) GoldLight else DisabledText)
+        }
+    }
+}
+
+/** The stage's difficulty as a row of stars, the unearned ones left dark. */
+@Composable
+private fun DifficultyStars(difficulty: Int, lit: Color) {
+    val filled = difficulty.coerceIn(1, BattleCityMaxDifficulty)
+    Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+        repeat(BattleCityMaxDifficulty) { index ->
+            PixelIconImage(PixelIcons.Star, if (index < filled) lit else SteelDark, cell = 1.dp)
+        }
     }
 }
 
 /** The thumbnail is drawn from the level data itself, so it can never fall out of sync. */
 @Composable
 private fun StageMiniMap(grid: List<String>, dimmed: Boolean, modifier: Modifier) {
-    Canvas(modifier = modifier.background(Color(0xFF0C0C0C), RoundedCornerShape(3.dp))) {
+    Canvas(modifier = modifier.background(Color(0xFF0C0C0C))) {
         if (grid.isEmpty()) return@Canvas
         val rows = grid.size
         val cols = grid[0].length
@@ -1716,9 +1769,4 @@ private fun StageMiniMap(grid: List<String>, dimmed: Boolean, modifier: Modifier
             }
         }
     }
-}
-
-private fun difficultyStars(difficulty: Int): String {
-    val filled = difficulty.coerceIn(1, BattleCityMaxDifficulty)
-    return "[" + "*".repeat(filled) + "-".repeat(BattleCityMaxDifficulty - filled) + "]"
 }

@@ -44,6 +44,8 @@
     <string name="about_body">1980 के दशक के कंसोल आर्केड की भावना वाला एक मौलिक टैंक गेम। सारी कलाकृति, ध्वनियाँ और 35 चरण इसी प्रोजेक्ट के लिए बनाए गए हैं — कुछ भी किसी अन्य गेम से नहीं लिया गया।</string>
     <string name="about_stages">%1$d चरण</string>
     <string name="about_version">संस्करण %1$s</string>
+    <string name="about_credits_title">श्रेय</string>
+    <string name="about_credit_font">फ़ॉन्ट: Stefie Justprince का Pixelify Sans, SIL Open Font License 1.1, Ironroost Pixel के रूप में संशोधित।</string>
     <string name="common_back">वापस</string>
     <string name="common_cancel">रद्द करें</string>
     <string name="common_reset">रीसेट</string>

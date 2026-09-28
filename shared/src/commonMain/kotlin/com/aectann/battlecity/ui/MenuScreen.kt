@@ -17,12 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -64,13 +63,18 @@ fun MenuScreen(
     onSettings: () -> Unit,
     onAbout: () -> Unit
 ) {
+    // Enter on a fresh menu starts a new run.
+    val newGame = rememberInitialFocus()
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MenuBackground)
             .safeContentPadding()
+            .pixelMenuKeys()
     ) {
-        if (maxWidth >= 700.dp) {
+        // Three columns only on a screen that is wide and lies on its side. A tall 720 × 1080
+        // window clears the width too, but squeezed its title column until the name broke in two.
+        if (maxWidth >= 700.dp && maxWidth > maxHeight) {
             Row(
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
@@ -93,7 +97,8 @@ fun MenuScreen(
                     onNewGame = onNewGame,
                     onContinue = onContinue,
                     onEndless = onEndless,
-                    onDaily = onDaily
+                    onDaily = onDaily,
+                    newGameFocus = newGame
                 )
                 SecondaryMenuActions(
                     modifier = Modifier.weight(1f),
@@ -129,7 +134,8 @@ fun MenuScreen(
                     onNewGame = onNewGame,
                     onContinue = onContinue,
                     onEndless = onEndless,
-                    onDaily = onDaily
+                    onDaily = onDaily,
+                    newGameFocus = newGame
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 SecondaryMenuActions(
@@ -172,18 +178,16 @@ private fun MenuBrand(
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
-        Text(
+        PixelTitle(
             text = stringResource(TanksStrings.appName),
             color = Color.White,
-            fontSize = 34.sp,
-            textAlign = TextAlign.Center
+            style = LocalPixelType.current.display
         )
         if (highestCompletedStage > 0) {
             Spacer(modifier = Modifier.height(18.dp))
             Text(
                 text = stringResource(TanksStrings.highestCompletedStage, highestCompletedStage),
                 color = MutedText,
-                fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )
         }
@@ -203,43 +207,44 @@ private fun PrimaryMenuActions(
     onContinue: () -> Unit,
     onEndless: () -> Unit,
     onDaily: () -> Unit,
+    newGameFocus: FocusRequester,
     modifier: Modifier = Modifier
 ) {
     val buttonWidth = Modifier.fillMaxWidth().widthIn(min = 220.dp, max = 360.dp)
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
     ) {
         SeatSelector(buttonWidth, playerCount, coopAvailable, onPlayerCountChange)
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(onClick = onNewGame, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.menuNewGame))
-        }
+        Spacer(modifier = Modifier.height(2.dp))
+        PixelButton(
+            text = stringResource(TanksStrings.menuNewGame),
+            onClick = onNewGame,
+            modifier = buttonWidth,
+            focusRequester = newGameFocus
+        )
         if (highestCompletedStage > 0) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onContinue, modifier = buttonWidth) {
-                Text(stringResource(TanksStrings.menuContinue))
-            }
+            PixelButton(stringResource(TanksStrings.menuContinue), onContinue, buttonWidth)
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onEndless, modifier = buttonWidth) {
-            Text(
-                if (bestEndlessWave > 0) {
-                    stringResource(TanksStrings.menuEndless) + "  ·  " +
-                        stringResource(TanksStrings.menuEndlessBest, bestEndlessWave)
-                } else {
-                    stringResource(TanksStrings.menuEndless)
-                }
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onDaily, modifier = buttonWidth) {
-            Text(
-                if (dailyClaimable) "! " + stringResource(TanksStrings.menuDaily)
-                else stringResource(TanksStrings.menuDaily)
-            )
-        }
+        PixelButton(
+            text = if (bestEndlessWave > 0) {
+                stringResource(TanksStrings.menuEndless) + "  ·  " +
+                    stringResource(TanksStrings.menuEndlessBest, bestEndlessWave)
+            } else {
+                stringResource(TanksStrings.menuEndless)
+            },
+            onClick = onEndless,
+            modifier = buttonWidth
+        )
+        // A reward waiting is a badge on the button, not a character in its label.
+        PixelButton(
+            text = stringResource(TanksStrings.menuDaily),
+            onClick = onDaily,
+            modifier = buttonWidth,
+            material = PixelMaterial.Gold,
+            badge = dailyClaimable
+        )
     }
 }
 
@@ -257,26 +262,19 @@ private fun SecondaryMenuActions(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
     ) {
-        OutlinedButton(onClick = onCollection, modifier = buttonWidth) {
-            Text(
-                stringResource(TanksStrings.menuCollection) + "  " +
-                    stringResource(TanksStrings.collectionProgress, collectionUnlocked, collectionTotal)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onLeaderboard, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.menuLeaderboard))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onSettings, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.menuSettings))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(onClick = onAbout, modifier = buttonWidth) {
-            Text(stringResource(TanksStrings.menuAbout))
-        }
+        val steel = PixelMaterial.Steel
+        PixelButton(
+            text = stringResource(TanksStrings.menuCollection) + "  " +
+                stringResource(TanksStrings.collectionProgress, collectionUnlocked, collectionTotal),
+            onClick = onCollection,
+            modifier = buttonWidth,
+            material = steel
+        )
+        PixelButton(stringResource(TanksStrings.menuLeaderboard), onLeaderboard, buttonWidth, material = steel)
+        PixelButton(stringResource(TanksStrings.menuSettings), onSettings, buttonWidth, material = steel)
+        PixelButton(stringResource(TanksStrings.menuAbout), onAbout, buttonWidth, material = steel)
     }
 }
 
@@ -297,28 +295,22 @@ private fun SeatSelector(
     onPlayerCountChange: (Int) -> Unit
 ) {
     Column(modifier = modifier) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SeatOption(
-                modifier = Modifier.weight(1f),
-                label = stringResource(TanksStrings.menuPlayersOne),
-                selected = playerCount <= 1,
-                enabled = true,
-                onClick = { onPlayerCountChange(1) }
-            )
-            SeatOption(
-                modifier = Modifier.weight(1f),
-                label = stringResource(TanksStrings.menuPlayersTwo),
-                selected = coopAvailable && playerCount > 1,
-                enabled = coopAvailable,
-                onClick = { onPlayerCountChange(2) }
-            )
-        }
+        PixelSegmented(
+            options = listOf(1, 2),
+            selected = if (coopAvailable && playerCount > 1) 2 else 1,
+            label = { seats ->
+                stringResource(if (seats == 1) TanksStrings.menuPlayersOne else TanksStrings.menuPlayersTwo)
+            },
+            onSelect = onPlayerCountChange,
+            isEnabled = { seats -> seats == 1 || coopAvailable },
+            modifier = Modifier.fillMaxWidth()
+        )
         if (!coopAvailable) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = stringResource(TanksStrings.menuCoopNeedsKeyboard),
                 color = MutedText,
-                fontSize = 11.sp,
+                style = LocalPixelType.current.caption,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -326,51 +318,40 @@ private fun SeatSelector(
     }
 }
 
-@Composable
-private fun SeatOption(
-    modifier: Modifier,
-    label: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    if (selected) {
-        Button(onClick = onClick, modifier = modifier, enabled = enabled) {
-            Text(label, fontSize = 13.sp)
-        }
-    } else {
-        OutlinedButton(onClick = onClick, modifier = modifier, enabled = enabled) {
-            Text(
-                text = label,
-                color = if (enabled) MutedText else MutedText.copy(alpha = 0.4f),
-                fontSize = 13.sp
-            )
-        }
-    }
-}
-
-/** Shared chrome for the settings and about pages. */
+/**
+ * Shared chrome for the pages off the menu: a lettered title, the page, and Back. Back takes
+ * focus as the page opens unless [backTakesFocus] is off because the page has a better
+ * first choice of its own (the daily claim, say).
+ */
 @Composable
 internal fun SubScreenScaffold(
     title: String,
     onBack: () -> Unit,
     backEnabled: Boolean = true,
+    backTakesFocus: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val back = rememberInitialFocus(enabled = backTakesFocus)
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MenuBackground)
             .safeContentPadding()
-            .padding(24.dp),
+            .padding(24.dp)
+            .pixelMenuKeys(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = title, color = Color.White, fontSize = 26.sp)
+        PixelTitle(text = title, style = LocalPixelType.current.title)
         Spacer(modifier = Modifier.height(24.dp))
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) { content() }
+        Box(modifier = Modifier.fillMaxWidth().widthIn(max = 640.dp).weight(1f)) { content() }
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = onBack, enabled = backEnabled, modifier = Modifier.widthIn(min = 200.dp)) {
-            Text(stringResource(TanksStrings.commonBack))
-        }
+        PixelButton(
+            text = stringResource(TanksStrings.commonBack),
+            onClick = onBack,
+            enabled = backEnabled,
+            modifier = Modifier.widthIn(min = 220.dp),
+            material = PixelMaterial.Steel,
+            focusRequester = back
+        )
     }
 }

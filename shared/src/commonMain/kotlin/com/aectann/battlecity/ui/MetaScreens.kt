@@ -1,8 +1,6 @@
 package com.aectann.battlecity.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,14 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,12 +27,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aectann.battlecity.TanksAssets
 import com.aectann.battlecity.TanksMetaUi
 import com.aectann.battlecity.TanksStrings
@@ -68,24 +61,28 @@ fun DailyRewardScreen(
     freezeResult: RewardedAdResult? = null,
     onFreeze: () -> Unit = {}
 ) {
-    SubScreenScaffold(title = stringResource(TanksStrings.dailyTitle), onBack = onBack, backEnabled = !freezeInProgress) {
+    val daily = meta.daily
+    val claimable = daily.availability == TanksDailyAvailability.Claimable
+    // With a reward waiting, Enter claims it; otherwise it goes back.
+    val claim = rememberInitialFocus(enabled = claimable)
+    val type = LocalPixelType.current
+
+    SubScreenScaffold(
+        title = stringResource(TanksStrings.dailyTitle),
+        onBack = onBack,
+        backEnabled = !freezeInProgress,
+        backTakesFocus = !claimable
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val daily = meta.daily
-
-            Text(
-                text = stringResource(TanksStrings.dailyStreak, daily.streak),
-                color = AccentGold,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
-            )
+            PixelTitle(stringResource(TanksStrings.dailyStreak, daily.streak))
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(TanksStrings.dailyBestStreak, daily.bestStreak),
                 color = MutedText,
-                fontSize = 13.sp
+                style = type.caption
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -95,14 +92,12 @@ fun DailyRewardScreen(
             Text(
                 text = stringResource(TanksStrings.dailyRewardLives, daily.reward.bonusLives),
                 color = Color.White,
-                fontSize = 15.sp,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = stringResource(TanksStrings.dailyRewardCard),
                 color = MutedText,
-                fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )
 
@@ -110,8 +105,7 @@ fun DailyRewardScreen(
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = stringResource(TanksStrings.dailyStreakWarning),
-                    color = BrickRed,
-                    fontSize = 13.sp,
+                    color = BrickLight,
                     textAlign = TextAlign.Center
                 )
             }
@@ -119,23 +113,24 @@ fun DailyRewardScreen(
             Spacer(modifier = Modifier.height(22.dp))
 
             when (daily.availability) {
-                TanksDailyAvailability.Claimable -> Button(
+                TanksDailyAvailability.Claimable -> PixelButton(
+                    text = stringResource(TanksStrings.dailyClaim),
                     onClick = onClaim,
                     enabled = !freezeInProgress,
-                    modifier = Modifier.widthIn(min = 220.dp)
-                ) { Text(stringResource(TanksStrings.dailyClaim)) }
+                    modifier = Modifier.widthIn(min = 240.dp),
+                    material = PixelMaterial.Gold,
+                    focusRequester = claim
+                )
 
                 TanksDailyAvailability.Claimed -> Text(
                     text = stringResource(TanksStrings.dailyClaimed),
                     color = PlayerGreen,
-                    fontSize = 14.sp,
                     textAlign = TextAlign.Center
                 )
 
                 TanksDailyAvailability.ClockBehind -> Text(
                     text = stringResource(TanksStrings.dailyClockBehind),
-                    color = BrickRed,
-                    fontSize = 13.sp,
+                    color = BrickLight,
                     textAlign = TextAlign.Center
                 )
             }
@@ -145,7 +140,6 @@ fun DailyRewardScreen(
                 Text(
                     text = stringResource(TanksStrings.dailyBanked, meta.pendingBonusLives),
                     color = PlayerGreen,
-                    fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
             }
@@ -153,28 +147,35 @@ fun DailyRewardScreen(
                 Spacer(Modifier.height(24.dp))
                 if (daily.streakFreezeStored) {
                     Text(stringResource(if (daily.streakFreezeWillBeUsed) TanksStrings.dailyFreezeProtectClaim
-                        else TanksStrings.dailyFreezeStored), color = PlayerGreen, fontSize = 14.sp,
+                        else TanksStrings.dailyFreezeStored), color = PlayerGreen,
                         textAlign = TextAlign.Center)
                 } else {
-                    Text(stringResource(TanksStrings.dailyFreezeOffer), color = MutedText, fontSize = 13.sp,
+                    Text(stringResource(TanksStrings.dailyFreezeOffer), color = MutedText,
                         textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = onFreeze, enabled = meta.canEarnStreakFreeze &&
-                        adState.streakFreeze == RewardedAdAvailability.Ready && !freezeInProgress) {
-                        Text(stringResource(if (freezeInProgress) TanksStrings.resurrectionWatching else TanksStrings.dailyFreezeWatch))
-                    }
+                    Spacer(Modifier.height(10.dp))
+                    PixelButton(
+                        text = stringResource(if (freezeInProgress) TanksStrings.resurrectionWatching else TanksStrings.dailyFreezeWatch),
+                        onClick = onFreeze,
+                        enabled = meta.canEarnStreakFreeze &&
+                            adState.streakFreeze == RewardedAdAvailability.Ready && !freezeInProgress,
+                        material = PixelMaterial.Steel
+                    )
                     val cooldownHours = maxOf(meta.streakFreezeCooldownHours, adState.streakFreezeCooldownHours)
-                    when {
-                        freezeInProgress -> Unit
-                        cooldownHours > 0 -> Text(stringResource(TanksStrings.dailyFreezeCooldown, cooldownHours),
-                            color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
-                        adState.streakFreeze == RewardedAdAvailability.Loading -> Text(stringResource(TanksStrings.resurrectionLoading), color = MutedText)
-                        adState.streakFreeze == RewardedAdAvailability.Unavailable -> Text(stringResource(TanksStrings.dailyFreezeUnavailable), color = MutedText,
-                            fontSize = 12.sp, textAlign = TextAlign.Center)
+                    val note = when {
+                        freezeInProgress -> null
+                        cooldownHours > 0 -> stringResource(TanksStrings.dailyFreezeCooldown, cooldownHours)
+                        adState.streakFreeze == RewardedAdAvailability.Loading -> stringResource(TanksStrings.resurrectionLoading)
+                        adState.streakFreeze == RewardedAdAvailability.Unavailable -> stringResource(TanksStrings.dailyFreezeUnavailable)
+                        else -> null
+                    }
+                    if (note != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(note, color = MutedText, style = type.caption, textAlign = TextAlign.Center)
                     }
                     if (!freezeInProgress && (freezeResult == RewardedAdResult.NotEarned || freezeResult == RewardedAdResult.Failed)) {
+                        Spacer(Modifier.height(6.dp))
                         Text(stringResource(if (freezeResult == RewardedAdResult.NotEarned) TanksStrings.dailyFreezeNotEarned
-                            else TanksStrings.resurrectionFailed), color = MutedText, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            else TanksStrings.resurrectionFailed), color = MutedText, style = type.caption, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -185,36 +186,32 @@ fun DailyRewardScreen(
 /** The seven cells of the weekly cycle, with the day a claim would land on picked out. */
 @Composable
 private fun WeekStrip(currentCycleDay: Int, claimable: TanksDailyAvailability) {
+    val type = LocalPixelType.current
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         (1..TanksDailyRewards.CycleLength).forEach { day ->
             val isToday = day == currentCycleDay
             val isPast = day < currentCycleDay
-            val border = when {
-                isToday && claimable == TanksDailyAvailability.Claimable -> AccentGold
+            val accent = when {
+                isToday && claimable == TanksDailyAvailability.Claimable -> GoldLight
                 isToday -> PlayerGreen
-                else -> Color.White.copy(alpha = 0.18f)
+                else -> null
             }
             Column(
                 modifier = Modifier
-                    .width(40.dp)
-                    .border(if (isToday) 2.dp else 1.dp, border, RoundedCornerShape(6.dp))
-                    .background(
-                        if (isPast) Color.White.copy(alpha = 0.06f) else Color.Transparent,
-                        RoundedCornerShape(6.dp)
-                    )
+                    .width(44.dp)
+                    .pixelInset(accent = accent, fill = if (isPast) PanelFace else PanelDark)
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = day.toString(),
                     color = if (isToday) Color.White else MutedText,
-                    fontSize = 13.sp,
-                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal
+                    style = type.label
                 )
                 Text(
                     text = "+${TanksDailyRewards.rewardFor(day).bonusLives}",
                     color = if (isToday) AccentGold else MutedText,
-                    fontSize = 11.sp
+                    style = type.caption
                 )
             }
         }
@@ -234,15 +231,12 @@ fun CollectionScreen(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = stringResource(
+            PixelTitle(
+                stringResource(
                     TanksStrings.collectionProgress,
                     meta.collectionUnlocked,
                     meta.collectionTotal
-                ),
-                color = AccentGold,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
+                )
             )
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -253,7 +247,6 @@ fun CollectionScreen(
                 Text(
                     text = stringResource(groupLabel(group)),
                     color = MutedText,
-                    fontSize = 13.sp,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -261,7 +254,7 @@ fun CollectionScreen(
                 cards.chunked(4).forEach { row ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         row.forEach { card ->
                             CollectionCardTile(
@@ -273,7 +266,7 @@ fun CollectionScreen(
                         }
                         repeat(4 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
                 Spacer(modifier = Modifier.height(14.dp))
             }
@@ -301,11 +294,7 @@ private fun CollectionCardTile(
 
     Column(
         modifier = modifier
-            .border(
-                1.dp,
-                if (unlocked) AccentGold else Color.White.copy(alpha = 0.14f),
-                RoundedCornerShape(6.dp)
-            )
+            .pixelInset(accent = if (unlocked) AccentGold else null)
             .padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -330,14 +319,14 @@ private fun CollectionCardTile(
                 Text(
                     text = "D7",
                     color = if (unlocked) AccentGold else Color.White.copy(alpha = 0.18f),
-                    fontSize = 26.sp
+                    style = LocalPixelType.current.heading
                 )
             }
         }
         Text(
             text = "$progress / ${card.requirement}",
             color = if (unlocked) PlayerGreen else MutedText,
-            fontSize = 10.sp
+            style = LocalPixelType.current.caption
         )
     }
 }
@@ -357,6 +346,7 @@ fun LeaderboardScreen(
 ) {
     var editing by remember { mutableStateOf(false) }
     var selectedTab by rememberSaveable { mutableStateOf(LeaderboardTab.Endless) }
+    val type = LocalPixelType.current
 
     SubScreenScaffold(title = stringResource(TanksStrings.leaderboardTitle), onBack = onBack) {
         Column(
@@ -371,39 +361,35 @@ fun LeaderboardScreen(
                     Text(
                         text = stringResource(TanksStrings.nicknameTitle),
                         color = MutedText,
-                        fontSize = 12.sp
+                        style = type.caption
                     )
                     Text(
                         text = meta.nickname,
                         color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        style = type.heading.shadowed()
                     )
                 }
-                OutlinedButton(onClick = { editing = true }) {
-                    Text(stringResource(TanksStrings.nicknameChange))
-                }
+                PixelButton(
+                    text = stringResource(TanksStrings.nicknameChange),
+                    onClick = { editing = true },
+                    material = PixelMaterial.Steel
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                LeaderboardTabButton(
-                    modifier = Modifier.weight(1f),
-                    selected = selectedTab == LeaderboardTab.Campaign,
-                    label = stringResource(TanksStrings.leaderboardTabCampaign),
-                    onClick = { selectedTab = LeaderboardTab.Campaign }
-                )
-                LeaderboardTabButton(
-                    modifier = Modifier.weight(1f),
-                    selected = selectedTab == LeaderboardTab.Endless,
-                    label = stringResource(TanksStrings.leaderboardTabEndless),
-                    onClick = { selectedTab = LeaderboardTab.Endless }
-                )
-            }
+            PixelSegmented(
+                options = listOf(LeaderboardTab.Campaign, LeaderboardTab.Endless),
+                selected = selectedTab,
+                label = { tab ->
+                    stringResource(
+                        if (tab == LeaderboardTab.Campaign) TanksStrings.leaderboardTabCampaign
+                        else TanksStrings.leaderboardTabEndless
+                    )
+                },
+                onSelect = { selectedTab = it },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -415,8 +401,7 @@ fun LeaderboardScreen(
             if (board.entries.isEmpty()) {
                 Text(
                     text = stringResource(TanksStrings.leaderboardEmpty),
-                    color = MutedText,
-                    fontSize = 14.sp
+                    color = MutedText
                 )
             } else {
                 board.entries.forEachIndexed { index, entry ->
@@ -433,14 +418,14 @@ fun LeaderboardScreen(
             Text(
                 text = stringResource(TanksStrings.leaderboardLocalNote),
                 color = MutedText,
-                fontSize = 11.sp
+                style = type.caption
             )
             if (selectedTab == LeaderboardTab.Endless && meta.hasPortalLeaderboard) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = stringResource(TanksStrings.leaderboardPortalNote),
                     color = PlayerGreen,
-                    fontSize = 11.sp
+                    style = type.caption
                 )
             }
         }
@@ -459,51 +444,36 @@ fun LeaderboardScreen(
 }
 
 @Composable
-private fun LeaderboardTabButton(
-    modifier: Modifier,
-    selected: Boolean,
-    label: String,
-    onClick: () -> Unit
-) {
-    if (selected) {
-        Button(onClick = onClick, modifier = modifier) { Text(label) }
-    } else {
-        OutlinedButton(onClick = onClick, modifier = modifier) { Text(label) }
-    }
-}
-
-@Composable
 private fun LeaderboardRow(place: Int, entry: TanksScoreEntry, isEndless: Boolean) {
+    val type = LocalPixelType.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .pixelInset(accent = if (place == 1) AccentGold else null)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "$place.",
             color = if (place == 1) AccentGold else MutedText,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(28.dp)
+            style = type.label,
+            modifier = Modifier.width(36.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = entry.name, color = Color.White, fontSize = 14.sp)
+            Text(text = entry.name, color = Color.White)
             Text(
                 text = stringResource(
                     if (isEndless) TanksStrings.leaderboardWaveRow else TanksStrings.leaderboardRow,
                     entry.stage
                 ),
                 color = MutedText,
-                fontSize = 11.sp
+                style = type.caption
             )
         }
         Text(
             text = entry.score.toString(),
             color = Color.White,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
+            style = type.heading.shadowed()
         )
     }
 }
@@ -515,31 +485,30 @@ private fun NicknameDialog(
     onDismiss: () -> Unit
 ) {
     var text by remember { mutableStateOf(initial) }
+    val field = rememberInitialFocus()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(TanksStrings.nicknameTitle)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.take(TanksNickname.MaxLength) },
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(TanksStrings.nicknameHint, TanksNickname.MaxLength),
-                    fontSize = 11.sp
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(text) }) {
-                Text(stringResource(TanksStrings.nicknameSave))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(TanksStrings.commonCancel)) }
+    PixelDialog(
+        title = stringResource(TanksStrings.nicknameTitle),
+        onDismiss = onDismiss,
+        menuKeys = false,
+        buttons = {
+            PixelButton(stringResource(TanksStrings.commonCancel), onDismiss, material = PixelMaterial.Steel)
+            PixelButton(stringResource(TanksStrings.nicknameSave), { onSave(text) })
         }
-    )
+    ) {
+        PixelTextField(
+            value = text,
+            onValueChange = { text = it.take(TanksNickname.MaxLength) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onSave(text) }),
+            focusRequester = field
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(TanksStrings.nicknameHint, TanksNickname.MaxLength),
+            color = MutedText,
+            style = LocalPixelType.current.caption
+        )
+    }
 }

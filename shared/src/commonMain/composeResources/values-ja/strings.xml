@@ -44,6 +44,8 @@
     <string name="about_body">1980年代のコンソールアーケードの雰囲気を持つオリジナルの戦車ゲームです。グラフィック、サウンド、35のステージはすべてこのプロジェクトのために制作されており、他のゲームから流用したものはありません。</string>
     <string name="about_stages">%1$d ステージ</string>
     <string name="about_version">バージョン %1$s</string>
+    <string name="about_credits_title">クレジット</string>
+    <string name="about_credit_font">フォント：Pixelify Sans（作者 Stefie Justprince、SIL Open Font License 1.1）を Ironroost Pixel として改変。</string>
     <string name="common_back">戻る</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_reset">リセット</string>
