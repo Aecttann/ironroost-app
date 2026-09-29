@@ -1,7 +1,11 @@
 package com.aectann.battlecity.ui
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -36,6 +40,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -123,14 +128,16 @@ internal fun Density.snapBoardSide(room: Dp, cells: Int): Dp {
 private val BoardFrame = PixelUnitDp * 4
 
 /**
- * What covers the board between stages: [closed] while a stage is being set up, [title] and
- * [hint] lettered on it, [onTap] to open it early.
+ * What covers the board between stages: [closed] while a stage is being set up, [title] lettered
+ * on it, [onTap] to open it early. The controls are not written here: they are shown on the field,
+ * beside the tank (BoardLesson).
  */
-internal class StageCurtain(val closed: Boolean, val title: String, val hint: String?, val onTap: () -> Unit)
+internal class StageCurtain(val closed: Boolean, val title: String, val onTap: () -> Unit)
 
 /**
  * The board in a riveted steel ring: the arena as a machined thing, not a hole in the page. The
- * whole assembly shakes with [fx]; the curtain closes over the board, not the ring.
+ * whole assembly shakes with [fx]; the curtain closes over the board, not the ring, and over the
+ * [lesson]'s keys, which it uncovers as it opens.
  */
 @Composable
 private fun FramedBoard(
@@ -139,7 +146,8 @@ private fun FramedBoard(
     assets: TanksAssets,
     animationFrame: Int,
     fx: TanksFx?,
-    curtain: StageCurtain?
+    curtain: StageCurtain?,
+    lesson: BoardLesson?
 ) {
     val cells = maxOf(state.tiles.cols, state.tiles.rows)
     Box(
@@ -157,6 +165,7 @@ private fun FramedBoard(
         contentAlignment = Alignment.Center
     ) {
         TanksBoard(modifier = Modifier.size(side), state = state, assets = assets, animationFrame = animationFrame, fx = fx)
+        if (lesson != null) LessonKeys(lesson, state, Modifier.size(side))
         if (curtain != null) StageCurtainView(curtain, Modifier.size(side))
     }
 }
@@ -204,10 +213,6 @@ private fun StageCurtainView(curtain: StageCurtain, modifier: Modifier) {
         ) {
             PixelPanel(contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp)) {
                 PixelTitle(curtain.title, style = LocalPixelType.current.title)
-                curtain.hint?.let { hint ->
-                    Spacer(Modifier.height(8.dp))
-                    Text(hint, color = MutedText, style = LocalPixelType.current.caption, textAlign = TextAlign.Center)
-                }
             }
         }
     }
@@ -245,7 +250,9 @@ internal fun TanksPlayfield(
     onFirePressedChanged: (Boolean) -> Unit,
     onStartPause: () -> Unit,
     fx: TanksFx? = null,
-    curtain: StageCurtain? = null
+    curtain: StageCurtain? = null,
+    /** The first-run keys over the board and the blinking stick and trigger; see BoardLesson. */
+    lesson: BoardLesson? = null
 ) {
     val cells = maxOf(state.tiles.cols, state.tiles.rows)
     val score = campaignScore + state.stageScore
@@ -285,11 +292,12 @@ internal fun TanksPlayfield(
                         DirectionPad(
                             activeDirection = activeDirection,
                             onDirectionChanged = onDirectionChanged,
+                            beckon = lesson?.beckonPad == true,
                             modifier = Modifier.size(minOf(panelWidth - 32.dp, 168.dp)).align(Alignment.CenterHorizontally)
                         )
                     }
                 }
-                FramedBoard(side, state, assets, animationFrame, fx, curtain)
+                FramedBoard(side, state, assets, animationFrame, fx, curtain, lesson)
                 PixelPanel(
                     modifier = Modifier.width(panelWidth).height(framed),
                     contentPadding = PaddingValues(12.dp),
@@ -304,7 +312,7 @@ internal fun TanksPlayfield(
                         if (showStartButton) PauseControl(isRunning, keyboardHints, onStartPause)
                         if (touchControls) {
                             Spacer(Modifier.height(10.dp))
-                            FireButton(isFirePressed, onFirePressedChanged, Modifier.size(minOf(panelWidth - 32.dp, 132.dp)))
+                            FireButton(isFirePressed, onFirePressedChanged, lesson?.beckonFire == true, Modifier.size(minOf(panelWidth - 32.dp, 132.dp)))
                         }
                     }
                 }
@@ -333,7 +341,7 @@ internal fun TanksPlayfield(
                 )
                 // The board sits in the middle of whatever height is left, not up under the strip.
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    FramedBoard(side, state, assets, animationFrame, fx, curtain)
+                    FramedBoard(side, state, assets, animationFrame, fx, curtain, lesson)
                 }
                 if (touchControls) {
                     Row(
@@ -341,10 +349,10 @@ internal fun TanksPlayfield(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DirectionPad(activeDirection, onDirectionChanged, Modifier.size(controlsHeight - 8.dp))
+                        DirectionPad(activeDirection, onDirectionChanged, lesson?.beckonPad == true, Modifier.size(controlsHeight - 8.dp))
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (showStartButton) PauseControl(isRunning, keyboardHints = false, onStartPause = onStartPause)
-                            FireButton(isFirePressed, onFirePressedChanged, Modifier.size(96.dp))
+                            FireButton(isFirePressed, onFirePressedChanged, lesson?.beckonFire == true, Modifier.size(96.dp))
                         }
                     }
                 }
@@ -533,14 +541,17 @@ internal fun SpriteImage(image: ImageBitmap?, size: Dp) {
 /**
  * The on-screen stick, drawn as a four-armed steel pad: the arm being held sinks and lights.
  * It reacts on touch down, not after a drag, so a tap steers too; sliding across it changes
- * direction without lifting the finger.
+ * direction without lifting the finger. While [beckon] is on — a new player who has not steered
+ * yet — its arms are rimmed in blinking gold.
  */
 @Composable
 private fun DirectionPad(
     activeDirection: BattleCityDirection?,
     onDirectionChanged: (BattleCityDirection?) -> Unit,
+    beckon: Boolean,
     modifier: Modifier
 ) {
+    val lit = beckonBlink(beckon)
     Canvas(
         modifier = modifier.pointerInput(Unit) {
             awaitEachGesture {
@@ -574,13 +585,17 @@ private fun DirectionPad(
             BattleCityDirection.Right to cell(2, 1),
             BattleCityDirection.Down to cell(1, 2)
         )
+        // Lit, the pad gets a gold rim round its whole cross: a backing one unit larger than
+        // each arm, which the centre and the arms then cover all but the edge of.
+        if (lit) arms.forEach { (_, at) -> drawRect(GoldLight, at - Offset(u, u), Size(third + 2 * u, third + 2 * u)) }
         drawPixelBlock(PixelMaterial.Steel, lift = 1, texture = false, topLeft = cell(1, 1), blockSize = armSize)
         arms.forEach { (direction, at) ->
             val held = direction == activeDirection
             drawPixelBlock(
                 material = PixelMaterial.Steel,
                 lift = if (held) 0 else 2,
-                faceTint = if (held) 0.3f else 0f,
+                outline = if (lit) GoldLight else Ink,
+                faceTint = if (held) 0.3f else if (lit) 0.2f else 0f,
                 texture = false,
                 topLeft = at,
                 blockSize = armSize
@@ -594,15 +609,19 @@ private fun DirectionPad(
             val sink = if (held) 2 * u else 0f
             val iconX = at.x + floor((third - icon.width * u) / 2f / u) * u
             val iconY = at.y + floor((third - 2 * u - icon.height * u) / 2f / u) * u + sink
-            drawPixelIcon(icon, Offset(iconX, iconY), u, if (held) Color.White else SteelLight)
+            drawPixelIcon(icon, Offset(iconX, iconY), u, if (held) Color.White else if (lit) GoldLight else SteelLight)
         }
     }
 }
 
-/** The trigger: held, not tapped — the tank fires as long as it is down, like the key. */
+/**
+ * The trigger: held, not tapped — the tank fires as long as it is down, like the key. Rimmed in
+ * blinking gold while [beckon] is on, until a new player has fired once.
+ */
 @Composable
-private fun FireButton(pressed: Boolean, onPressedChanged: (Boolean) -> Unit, modifier: Modifier) {
+private fun FireButton(pressed: Boolean, onPressedChanged: (Boolean) -> Unit, beckon: Boolean, modifier: Modifier) {
     val unit = with(LocalDensity.current) { pixelUnit().toDp() }
+    val lit = beckonBlink(beckon)
     Box(
         modifier = modifier
             .pointerInput(Unit) {
@@ -617,7 +636,10 @@ private fun FireButton(pressed: Boolean, onPressedChanged: (Boolean) -> Unit, mo
                     }
                 )
             }
-            .drawBehind { drawPixelBlock(PixelMaterial.Alarm, lift = if (pressed) 0 else 2, texture = false) },
+            .drawBehind {
+                if (lit) drawBeckonRing()
+                drawPixelBlock(PixelMaterial.Alarm, lift = if (pressed) 0 else 2, outline = if (lit) GoldLight else Ink, faceTint = if (lit) 0.25f else 0f, texture = false)
+            },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -628,6 +650,33 @@ private fun FireButton(pressed: Boolean, onPressedChanged: (Boolean) -> Unit, mo
             modifier = Modifier.offset(y = if (pressed) unit else -unit)
         )
     }
+}
+
+/**
+ * On and off twice a second while [beckon] holds, for a control a new player has not found yet;
+ * always off otherwise, with no animation running.
+ */
+@Composable
+private fun beckonBlink(beckon: Boolean): Boolean {
+    if (!beckon) return false
+    val phase by rememberInfiniteTransition(label = "beckon").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 1000, easing = LinearEasing)),
+        label = "blink"
+    )
+    return (phase * 2f) % 1f < 0.55f
+}
+
+/** A gold ring just outside a control, over the panel it sits on: "this one". */
+private fun DrawScope.drawBeckonRing() {
+    val u = pixelUnit()
+    val w = size.width
+    val h = size.height
+    drawRect(GoldLight, Offset(-u, -2 * u), Size(w + 2 * u, u))
+    drawRect(GoldLight, Offset(-u, h + u), Size(w + 2 * u, u))
+    drawRect(GoldLight, Offset(-2 * u, -u), Size(u, h + 2 * u))
+    drawRect(GoldLight, Offset(w + u, -u), Size(u, h + 2 * u))
 }
 
 /** Which arm of the pad a touch at [position] is on; the middle is a dead zone. */

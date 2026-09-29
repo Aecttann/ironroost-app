@@ -72,8 +72,8 @@ cannot switch on two players on its way to New game.
 
 ## Screenshots for before/after
 
-`screenshots.js` photographs the built game at fixed moments — menu, the stage-one card, six
-seconds into a solo run, the pause overlay — at 1280×720, 720×1080 and a 360×640 touch phone, on
+`screenshots.js` photographs the built game at fixed moments — a first visit, the menu, the
+stage-one card, six seconds into a solo run, the pause overlay — at 1280×720, 720×1080 and a 360×640 touch phone, on
 the same virtual clock and seed as the previews, so two builds can be compared picture for picture:
 
 ```powershell
@@ -85,6 +85,11 @@ node docs/crazygames/media/screenshots.js compare before phase-1
 Shots land in `docs/quality/screens/<label>/` and are committed; `compare` writes labelled pairs to
 `docs/quality/screens/<before>-vs-<after>/` (ignored by git, rebuilt on demand) and needs `ffmpeg`.
 `--formats` and `--views` take comma-separated subsets. Every format starts on a fresh profile.
+A fresh profile is a stranger, and a stranger skips the menu for stage one with the controls drawn
+on the field; that is the `first-visit` view. Everything else — here, in `tour` and in
+`record-gameplay.js` — is shot as a returning player: `launch({ visitor })` in `chrome-session.js`
+defaults to `"returning"`, which writes the game's "lesson done" key into `localStorage` before
+the page loads.
 Besides the three default formats there are `hd` (a 1920×1080 desktop window) and `phone-land`
 (the phone on its side, touch), for checking the game screen at its extremes.
 

@@ -9,7 +9,8 @@
  * `shoot` lands in docs/quality/screens/<label>/<format>-<view>.png. The views, in the order a
  * player meets them:
  *
- *   menu         the first screen, a second after it settles
+ *   first-visit  a stranger's arrival: straight into stage one, the controls drawn on the field
+ *   menu         the first screen of a returning player, a second after it settles
  *   menu-keys    the same menu after two presses of the down arrow: the keyboard cursor
  *   stage-start  stage one opening, its card on screen
  *   gameplay     six seconds into the run, the player having moved and fired
@@ -17,7 +18,8 @@
  *
  * The game runs on virtual-clock.js with its dice fixed by --seed, so the same build gives the
  * same pictures every time and a difference between two labels is a difference in the game.
- * Every format starts on a throwaway profile: a first visit, nothing saved.
+ * Every format starts on a throwaway profile. first-visit keeps it empty; everything else is shot
+ * as a returning player, whose save says the first-run lesson is done (chrome-session.js).
  *
  * `tour` visits the screens off the menu by keyboard — daily reward, collection, records and
  * the nickname dialog, settings and the reset question, about, the stage list — and saves each
@@ -35,10 +37,13 @@ const { launch, FORMATS, FPS } = require("./chrome-session");
 
 const SCREENS = path.resolve(__dirname, "..", "..", "quality", "screens");
 
-const VIEWS = ["menu", "menu-keys", "stage-start", "gameplay", "pause"];
+const VIEWS = ["first-visit", "menu", "menu-keys", "stage-start", "gameplay", "pause"];
 const MENU_SETTLE_FRAMES = FPS;
+// On top of the wall time openMenu waits: the shutters are open, the first enemies are in, and
+// the player has not touched a thing.
+const FIRST_VISIT_FRAMES = FPS;
 const KEY_SETTLE_FRAMES = 6;
-// Half a second into the card, well inside the 3.6 s the first card of a visit holds.
+// Half a second into the card, well inside the 1.5 s it holds.
 const STAGE_CARD_FRAMES = FPS / 2;
 const GAMEPLAY_FRAME = FPS * 6;
 const PAUSE_SETTLE_FRAMES = FPS / 2;
@@ -89,19 +94,38 @@ async function shoot(label) {
     const dir = path.join(SCREENS, label);
     fs.mkdirSync(dir, { recursive: true });
 
+    const saveFrom = async (session, format, view) => {
+        if (!views.includes(view)) return;
+        const { data } = await session.client.send("Page.captureScreenshot", { format: "png" });
+        const file = path.join(dir, `${format}-${view}.png`);
+        fs.writeFileSync(file, Buffer.from(data, "base64"));
+        console.log(`${path.relative(process.cwd(), file)}`);
+    };
+
     for (const format of formats) {
         if (!FORMATS[format]) throw new Error(`unknown format ${format}`);
+        const dist = option("--dist", "productionExecutable");
+
+        // A stranger gets a profile of their own, with nothing in it.
+        if (views.includes("first-visit")) {
+            const stranger = await launch({ format, port, scale: 1, dist, visitor: "first" });
+            try {
+                await stranger.openMenu({ seed });
+                // Nothing to assert on: the stage was reported before capture.js was in to hear
+                // it. The picture shows where the visit landed.
+                await stranger.evaluate(`ironroostCapture.idle(${FIRST_VISIT_FRAMES})`);
+                await saveFrom(stranger, format, "first-visit");
+            } finally {
+                stranger.close();
+            }
+        }
+        if (views.every(view => view === "first-visit")) continue;
+
         // CSS size, one image pixel per layout pixel: what a 1280x720 player sees, not a
         // listing asset. Sharp enough to judge a layout and small enough to keep in the repo.
-        const session = await launch({ format, port, scale: 1, dist: option("--dist", "productionExecutable") });
+        const session = await launch({ format, port, scale: 1, dist });
         try {
-            const save = async view => {
-                if (!views.includes(view)) return;
-                const { data } = await session.client.send("Page.captureScreenshot", { format: "png" });
-                const file = path.join(dir, `${format}-${view}.png`);
-                fs.writeFileSync(file, Buffer.from(data, "base64"));
-                console.log(`${path.relative(process.cwd(), file)}`);
-            };
+            const save = view => saveFrom(session, format, view);
 
             await session.openMenu({ seed });
             await session.evaluate(`ironroostCapture.idle(${MENU_SETTLE_FRAMES})`);
@@ -117,7 +141,7 @@ async function shoot(label) {
                 await session.openMenu({ seed });
                 await settle(session, MENU_SETTLE_FRAMES);
             }
-            if (views.every(view => view.startsWith("menu"))) continue;
+            if (views.every(view => view.startsWith("menu") || view === "first-visit")) continue;
 
             // The game screen names its stage the moment it opens, card and all, while the
             // run itself only starts once the card is gone; the card is shot in between.

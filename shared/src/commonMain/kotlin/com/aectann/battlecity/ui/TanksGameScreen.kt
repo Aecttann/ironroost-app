@@ -86,6 +86,7 @@ import com.aectann.battlecity.TanksPlatform
 import com.aectann.battlecity.TanksResources
 import com.aectann.battlecity.TanksStageSummary
 import com.aectann.battlecity.TanksStrings
+import com.aectann.battlecity.TanksTutorial
 import com.aectann.battlecity.TanksAds
 import com.aectann.battlecity.NoopTanksAds
 import androidx.compose.ui.text.style.TextAlign
@@ -119,7 +120,6 @@ import kotlin.math.roundToInt
  * card after it is just a stage number the player already expects, so it keeps the original's
  * brisk beat rather than taxing every transition with reading time nobody needs twice.
  */
-private const val FirstStageCardMillis = 3600L
 private const val StageCardMillis = 1500L
 
 /** How long a cleared stage celebrates, and a lost one settles, before its screen comes up. */
@@ -164,6 +164,9 @@ private fun startButtonVisible(phase: TanksPhase): Boolean =
 /**
  * The game itself. The platform, view model and sprite set are supplied by the caller, so a
  * host app that embeds this game can plug in its own wallet and storage.
+ *
+ * [tutorial] is the app's, so that a lesson finished here is known to the menu; a host that
+ * embeds only this screen gets one of its own on the platform's store.
  */
 @Composable
 fun TanksGameScreen(
@@ -171,7 +174,8 @@ fun TanksGameScreen(
     viewModel: TanksViewModel,
     assets: TanksAssets?,
     onExitToMenu: () -> Unit,
-    ads: TanksAds = NoopTanksAds
+    ads: TanksAds = NoopTanksAds,
+    tutorial: TanksTutorial? = null
 ) {
     val session by viewModel.session.collectAsState()
     val renderState by viewModel.render.collectAsState()
@@ -189,9 +193,8 @@ fun TanksGameScreen(
     val fx = remember { TanksFx() }
     val secondHeldInput = remember { TanksHeldInput() }
     val isCoop = session.isCoop
-    // Per visit, not per run: someone who came back to the menu and started again has read the
-    // controls already, but a fresh arrival on a portal page has not.
-    var controlsCardShown by remember { mutableStateOf(false) }
+    // The keys drawn beside a new player's tank until they have been used (BoardLesson).
+    val lesson = tutorial ?: remember(platform) { TanksTutorial(platform.keyValueStore) }
     var animationFrame by remember { mutableIntStateOf(0) }
     var showStageSelector by rememberSaveable { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -275,7 +278,6 @@ fun TanksGameScreen(
     val currentAdsState by rememberUpdatedState(adsState)
     val startRun = {
         if (currentAssets != null && !currentAdsState.fullScreenShowing && !currentAdsState.privacyOptionsBusy) {
-            controlsCardShown = true
             viewModel.startOrResume()
         }
     }
@@ -287,11 +289,12 @@ fun TanksGameScreen(
             sound.setEngineRunning(false)
         }
         if (session.phase == TanksPhase.Ready) {
+            // Whatever the lesson has to show for this run is under the shutters as they open.
+            lesson.beginRun(coop = session.isCoop)
             // The stage card holds the board for a beat, then the run starts by itself,
-            // the way the original does between stages. The first card of a visit holds longer
-            // because it is carrying the controls; see FirstStageCardMillis.
+            // the way the original does between stages.
             sound.play(TanksClip.StageStart)
-            delay(if (controlsCardShown) StageCardMillis else FirstStageCardMillis)
+            delay(StageCardMillis)
             snapshotFlow { currentAssets != null }.first { it }
             startRun()
         }
@@ -322,6 +325,8 @@ fun TanksGameScreen(
     // wreck of a lost one settling. Only then does the summary or the loss screen come up.
     var endMomentOver by remember { mutableStateOf(true) }
     LaunchedEffect(session.phase) {
+        // A solo stage cleared is a lesson learned, whichever keys it was played with.
+        if (session.phase == TanksPhase.StageCleared && !session.isCoop) lesson.markDone()
         when (session.phase) {
             TanksPhase.StageCleared -> {
                 endMomentOver = false
@@ -352,6 +357,8 @@ fun TanksGameScreen(
             previousFrame = frame
             val direction = heldInput.direction
             val secondDirection = secondHeldInput.direction
+            lesson.onInput(0, direction, heldInput.firePressed)
+            if (isCoop) lesson.onInput(1, secondDirection, secondHeldInput.firePressed)
             val step = viewModel.advance(
                 deltaSeconds = delta,
                 inputs = BattleCityInputs(
@@ -508,10 +515,15 @@ fun TanksGameScreen(
                         } else {
                             stringResource(TanksStrings.stage, session.stage)
                         },
-                        // The only place the controls are written down, until they are shown on
-                        // the field itself; it names both seats' keys when there are two.
-                        hint = stringResource(if (isCoop) TanksStrings.controlsHintCoop else TanksStrings.controlsHint),
                         onTap = startRun
+                    ),
+                    // The controls, shown rather than written: keys beside the tank on a device
+                    // that has them, the stick and trigger blinking on one that is touched.
+                    lesson = BoardLesson(
+                        tutorial = lesson,
+                        coop = isCoop,
+                        keys = platform.hasPhysicalKeyboard,
+                        touch = platform.usesTouchControls
                     )
                 )
             }
@@ -539,7 +551,8 @@ fun TanksGameScreen(
                     onExitToMenu = requestExitToMenu,
                     // Closing the stage list or the exit question hands focus back to the pause
                     // menu, which would otherwise be left with none and deaf to the keys.
-                    dialogOpen = showStageSelector || showExitConfirm
+                    dialogOpen = showStageSelector || showExitConfirm,
+                    controls = stringResource(if (isCoop) TanksStrings.controlsHintCoop else TanksStrings.controlsHint)
                 )
 
                 TanksPhase.StageCleared -> session.summary?.let { summary ->
@@ -991,7 +1004,12 @@ private fun TanksPauseOverlay(
     onSoundToggled: (Boolean) -> Unit,
     onExitToMenu: () -> Unit,
     /** The stage list or the exit question is open over this menu. */
-    dialogOpen: Boolean
+    dialogOpen: Boolean,
+    /**
+     * Every key, written out: the field only shows them to a new player, and this is where
+     * someone who has forgotten will stop to look.
+     */
+    controls: String
 ) {
     // Resume takes focus as the menu opens and again when a dialog over it closes.
     val resume = rememberInitialFocus(key = dialogOpen, enabled = !dialogOpen)
@@ -1019,6 +1037,16 @@ private fun TanksPauseOverlay(
             )
             PixelButton(stringResource(TanksStrings.commonBack), onExitToMenu, wide, material = PixelMaterial.Steel)
         }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            // One line a control: every locale separates them with the same bullet, and wrapped
+            // as one sentence the last of them was left dangling on a line of its own.
+            text = controls.split("•").joinToString("\n") { it.trim() },
+            color = MutedText,
+            style = LocalPixelType.current.caption,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(280.dp)
+        )
     }
 }
 

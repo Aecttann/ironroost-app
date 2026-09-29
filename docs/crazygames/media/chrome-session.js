@@ -81,7 +81,13 @@ function connect(url) {
  * density outright, for screenshots that should come out at the CSS size. [dist] picks the
  * build: developmentExecutable builds in a fraction of the time, for checking a screen quickly.
  */
-async function launch({ format, port = 8130, debugPort = 9333, dry = false, scale, dist = "productionExecutable" }) {
+/**
+ * [visitor] is who the game thinks has arrived. "returning" — the default — has finished the
+ * first-run lesson, so the page opens on the menu, which is where every take and every tour
+ * starts. "first" is a stranger: the game skips the menu and opens straight on stage one with its
+ * controls drawn on the field.
+ */
+async function launch({ format, port = 8130, debugPort = 9333, dry = false, scale, dist = "productionExecutable", visitor = "returning" }) {
     const size = FORMATS[format];
     if (!size) throw new Error(`unknown format ${format}; expected ${Object.keys(FORMATS).join(" or ")}`);
     const gameUrl = `http://localhost:${port}/webApp/build/dist/wasmJs/${dist}/index.html`;
@@ -182,7 +188,8 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
 
         /**
          * (Re)loads the game on the virtual clock and stops on the menu with the clock held and
-         * the dice fixed: the first screen a player sees, and where every run starts from.
+         * the dice fixed: the first screen a player sees, and where every run starts from. For a
+         * "first" visitor it stops a few seconds into stage one instead, which is where they land.
          */
         async openMenu({ seed }) {
             await client.send("Page.reload", { ignoreCache: true });
@@ -234,6 +241,16 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
     await client.send("Page.addScriptToEvaluateOnNewDocument", {
         source: fs.readFileSync(path.join(__dirname, "virtual-clock.js"), "utf8")
     });
+    // The profile is a throwaway one, so a returning player is one whose save says so: the
+    // lesson's key (TanksTutorial.KeyDone) under the page's storage prefix (portal.js).
+    if (visitor === "returning") {
+        await client.send("Page.addScriptToEvaluateOnNewDocument", {
+            source: `try { localStorage.setItem("ironroost.tanks_tutorial_done", "true"); } catch (_) {}`
+        });
+    } else if (visitor !== "first") {
+        chrome.kill();
+        throw new Error(`unknown visitor ${visitor}; expected returning or first`);
+    }
     await client.send("Page.navigate", { url: gameUrl });
     // Let the first load finish before anything reloads it: a reload sent mid-navigation lands
     // on a page that is being swapped out and fails with "not attached to an active page".

@@ -77,12 +77,16 @@ fun TanksTheme(content: @Composable () -> Unit) {
  * and the run's view model owned here so they survive moving between screens.
  *
  * @param allStagesUnlocked lets a development build jump straight to any stage.
+ * @param firstVisitStartsGame sends a player who has never played straight into stage one, with
+ *   the controls shown on the field, rather than to the menu. A portal page has seconds to show
+ *   its game; a menu is the second thing a new player should see, not the first.
  */
 @Composable
 fun App(
     allStagesUnlocked: Boolean = false,
     ads: TanksAds = NoopTanksAds,
-    menuBanner: @Composable () -> Unit = {}
+    menuBanner: @Composable () -> Unit = {},
+    firstVisitStartsGame: Boolean = true
 ) {
     TanksTheme {
         val platform = rememberTanksPlatform()
@@ -114,7 +118,13 @@ fun App(
         LaunchedEffect(adsState.fullScreenShowing, adsState.privacyOptionsBusy, session.phase) {
             if (adsState.fullScreenShowing || adsState.privacyOptionsBusy) viewModel.pause()
         }
-        var destination by rememberSaveable { mutableStateOf(Destination.Menu) }
+        // The view model has already set up stage one for one player, so a first visit only has
+        // to open on the game screen. Saveable, so a rotation does not send them to the menu.
+        val tutorial = remember(platform) { TanksTutorial(platform.keyValueStore) }
+        var destination by rememberSaveable {
+            val firstVisit = firstVisitStartsGame && tutorial.isFirstVisit(session.highestCompletedStage)
+            mutableStateOf(if (firstVisit) Destination.Game else Destination.Menu)
+        }
         LaunchedEffect(ads, destination, meta.canEarnStreakFreeze) {
             ads.prepareStreakFreeze(destination == Destination.Daily && meta.canEarnStreakFreeze)
         }
@@ -244,6 +254,7 @@ fun App(
                             viewModel = viewModel,
                             assets = assets,
                             ads = ads,
+                            tutorial = tutorial,
                             onExitToMenu = {
                                 viewModel.finishLostRun()
                                 viewModel.pause()
