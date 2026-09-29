@@ -51,6 +51,11 @@ private val TankColors = darkColorScheme(
     onError = Color(0xFFFFFFFF)
 )
 
+private const val KeyMusicLevel = "tanks_music_level"
+private const val KeyEffectsLevel = "tanks_effects_level"
+private const val DefaultMusicLevel = 7
+private const val DefaultEffectsLevel = 10
+
 private enum class Destination {
     Menu,
     Game,
@@ -161,9 +166,16 @@ fun App(
         }
         DisposableEffect(sound) { onDispose { sound.release() } }
 
-        // The menu theme under every menu screen; the run has its own sound.
+        // The player's music and effects levels, 0 to 10, kept with the rest of the settings.
+        var musicLevel by remember { mutableStateOf(platform.keyValueStore.getInt(KeyMusicLevel, DefaultMusicLevel)) }
+        var effectsLevel by remember { mutableStateOf(platform.keyValueStore.getInt(KeyEffectsLevel, DefaultEffectsLevel)) }
+        LaunchedEffect(musicLevel, effectsLevel) {
+            sound.setVolumes(musicLevel / 10f, effectsLevel / 10f)
+        }
+
+        // The menu theme under every menu screen. The game screen picks its own (TanksGameScreen).
         LaunchedEffect(destination) {
-            sound.setMusic(if (destination == Destination.Game) null else TanksMusic.Menu)
+            if (destination != Destination.Game) sound.setMusic(TanksMusic.Menu)
         }
 
         // Music keeps playing between screens, unlike a clip, so leaving the app has to stop it:
@@ -270,7 +282,19 @@ fun App(
                             privacyOptionsBusy = adsState.privacyOptionsBusy,
                             privacyOptionsFailed = adsState.privacyOptionsFailed,
                             onPrivacyOptions = ads::showPrivacyOptions,
-                            onBack = { destination = Destination.Menu }
+                            onBack = { destination = Destination.Menu },
+                            musicLevel = musicLevel,
+                            effectsLevel = effectsLevel,
+                            onMusicLevelChange = { level ->
+                                musicLevel = level
+                                platform.keyValueStore.putInt(KeyMusicLevel, level)
+                            },
+                            onEffectsLevelChange = { level ->
+                                effectsLevel = level
+                                platform.keyValueStore.putInt(KeyEffectsLevel, level)
+                                // Heard at the level just picked, which is the point of the slider.
+                                sound.play(TanksClip.MenuSelect)
+                            }
                         )
     
                         Destination.About -> AboutScreen(

@@ -1,5 +1,8 @@
 package com.aectann.battlecity.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,6 +56,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -64,6 +68,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -75,6 +80,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.aectann.battlecity.PlatformBackHandler
 import com.aectann.battlecity.TanksAssets
 import com.aectann.battlecity.TanksClip
+import com.aectann.battlecity.TanksMusic
 import com.aectann.battlecity.TanksPhase
 import com.aectann.battlecity.TanksPlatform
 import com.aectann.battlecity.TanksResources
@@ -115,6 +121,10 @@ import kotlin.math.roundToInt
  */
 private const val FirstStageCardMillis = 3600L
 private const val StageCardMillis = 1500L
+
+/** How long a cleared stage celebrates, and a lost one settles, before its screen comes up. */
+private const val StageClearMomentMillis = 1400L
+private const val GameOverMomentMillis = 1200L
 
 /**
  * Which keys are down, and which of them were already down when the run stopped for an overlay.
@@ -174,6 +184,9 @@ fun TanksGameScreen(
     // One holder per seat. The on-screen pad only ever drives player one: co-op is a keyboard
     // feature, and two joysticks on one phone screen is not a control scheme.
     val heldInput = remember { TanksHeldInput() }
+    // The board's chips, flashes, points and shake. Stepped by its own frame loop below, not the
+    // run's: a base blown up ends the run, and its debris should still land.
+    val fx = remember { TanksFx() }
     val secondHeldInput = remember { TanksHeldInput() }
     val isCoop = session.isCoop
     // Per visit, not per run: someone who came back to the menu and started again has read the
@@ -284,6 +297,49 @@ fun TanksGameScreen(
         }
     }
 
+    LaunchedEffect(fx) {
+        var previous = withFrameNanos { it }
+        while (true) {
+            val now = withFrameNanos { it }
+            fx.update(((now - previous) / 1_000_000_000.0).toFloat())
+            previous = now
+        }
+    }
+    // The battle theme for as long as there is a run; a lost run falls silent under its jingle.
+    // Only with the app's shared player, which is the one that has the music loaded.
+    if (appSound != null) {
+        LaunchedEffect(session.phase == TanksPhase.GameOver) {
+            sound.setMusic(if (session.phase == TanksPhase.GameOver) null else TanksMusic.Battle)
+        }
+    }
+
+    // A stage starts clean: nothing from the last one still flying about under the curtain.
+    LaunchedEffect(session.stage, session.phase == TanksPhase.Ready) {
+        if (session.phase == TanksPhase.Ready) fx.clear()
+    }
+
+    // The end of a stage gets its moment before the menus: fireworks over a cleared board, the
+    // wreck of a lost one settling. Only then does the summary or the loss screen come up.
+    var endMomentOver by remember { mutableStateOf(true) }
+    LaunchedEffect(session.phase) {
+        when (session.phase) {
+            TanksPhase.StageCleared -> {
+                endMomentOver = false
+                renderState?.let { fx.celebrate(it.tiles.cols, it.tiles.rows) }
+                delay(StageClearMomentMillis)
+                endMomentOver = true
+            }
+
+            TanksPhase.GameOver -> {
+                endMomentOver = false
+                delay(GameOverMomentMillis)
+                endMomentOver = true
+            }
+
+            else -> endMomentOver = true
+        }
+    }
+
     LaunchedEffect(viewModel, session.phase, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
         if (session.phase != TanksPhase.Playing || adsState.fullScreenShowing || adsState.privacyOptionsBusy) return@LaunchedEffect
         var previousFrame = withFrameNanos { it }
@@ -296,14 +352,15 @@ fun TanksGameScreen(
             previousFrame = frame
             val direction = heldInput.direction
             val secondDirection = secondHeldInput.direction
-            val events = viewModel.advance(
+            val step = viewModel.advance(
                 deltaSeconds = delta,
                 inputs = BattleCityInputs(
                     first = BattleCityInput(direction, heldInput.firePressed),
                     second = BattleCityInput(secondDirection, secondHeldInput.firePressed)
                 )
             )
-            events.forEach { sound.play(TanksClip.of(it)) }
+            step?.events?.forEach { sound.play(TanksClip.of(it)) }
+            step?.fx?.let(fx::onEvents)
             sound.setEngineRunning(direction != null || secondDirection != null)
             animationFrame = ++frameCount
         }
@@ -439,20 +496,39 @@ fun TanksGameScreen(
                     onDirectionChanged = heldInput::setPointerDirection,
                     onFirePressedChanged = heldInput::setPointerFire,
                     // The pause button clicks for itself (PixelBlockButton).
-                    onStartPause = { viewModel.togglePause() }
+                    onStartPause = { viewModel.togglePause() },
+                    fx = fx,
+                    // The stage opens behind shutters with its name on them. Starting the run flips
+                    // the phase, which cancels the effect still counting the hold down — so a tap
+                    // that opens them early needs no flag of its own.
+                    curtain = StageCurtain(
+                        closed = session.phase == TanksPhase.Ready,
+                        title = if (session.isEndless) {
+                            stringResource(TanksStrings.wave, 1)
+                        } else {
+                            stringResource(TanksStrings.stage, session.stage)
+                        },
+                        // The only place the controls are written down, until they are shown on
+                        // the field itself; it names both seats' keys when there are two.
+                        hint = stringResource(if (isCoop) TanksStrings.controlsHintCoop else TanksStrings.controlsHint),
+                        onTap = startRun
+                    )
                 )
             }
 
-            when (session.phase) {
-                TanksPhase.Ready -> TanksStageCard(
-                    stage = session.stage,
-                    isCoop = isCoop,
-                    isEndless = session.isEndless,
-                    // Starting the run flips the phase, which cancels the effect still counting the
-                    // card's hold down — so the skip needs no flag of its own.
-                    onSkip = startRun
+            // A stage that has just ended shows its moment first (see endMomentOver).
+            if (!endMomentOver) {
+                EndOfStageBanner(
+                    text = if (session.phase == TanksPhase.StageCleared) {
+                        stringResource(TanksStrings.summaryTitle, session.stage)
+                    } else {
+                        stringResource(if (session.isEndless) TanksStrings.endlessOverTitle else TanksStrings.gameOver)
+                    },
+                    color = if (session.phase == TanksPhase.StageCleared) GoldLight else BrickLight
                 )
+            }
 
+            if (endMomentOver) when (session.phase) {
                 // The overlays' buttons click for themselves (PixelBlockButton).
                 TanksPhase.Paused -> TanksPauseOverlay(
                     soundEnabled = session.soundEnabled,
@@ -543,13 +619,17 @@ fun TanksGameScreen(
     }
 }
 
+/** The board itself. [fx], when given, is drawn over everything: chips, flashes, points. */
 @Composable
 internal fun TanksBoard(
     modifier: Modifier,
     state: BattleCityRenderState,
     assets: TanksAssets,
-    animationFrame: Int
+    animationFrame: Int,
+    fx: TanksFx? = null
 ) {
+    val textMeasurer = rememberTextMeasurer()
+    val popupStyle = LocalPixelType.current.label.shadowed()
     Canvas(modifier = modifier.aspectRatio(1f).background(Color.Black)) {
         val snapshot = state.tiles
         val boardPx = size.minDimension
@@ -604,6 +684,8 @@ internal fun TanksBoard(
             } ?: return@forEach
             drawSprite(image, effect.x, effect.y, effect.sizeCells, tileSize, offset)
         }
+
+        fx?.let { drawFx(it, tileSize, offset, textMeasurer, popupStyle) }
     }
 }
 
@@ -740,46 +822,27 @@ private fun FullScreenOverlay(content: @Composable ColumnScope.() -> Unit) {
 }
 
 /**
- * The grey card the original shows between stages, covering the field while it is built.
- *
- * Tapping it starts the run immediately. The card is the only place the controls are written
- * down, so it has to hold long enough to read — and a hold nobody can shorten is exactly the
- * forced delay the platform's quality guidelines tell you to remove. Being skippable is what
- * lets it be generous.
+ * A stage's last word, lettered large across the screen while its moment plays out: dropping in
+ * from above and settling, over a board that is still shaking or still sparkling.
  */
 @Composable
-private fun TanksStageCard(stage: Int, isCoop: Boolean, isEndless: Boolean, onSkip: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF6B6B6B))
-            .pointerInput(Unit) { detectTapGestures { onSkip() } },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = if (isEndless) {
-                    stringResource(TanksStrings.wave, 1)
-                } else {
-                    stringResource(TanksStrings.stage, stage)
-                },
-                color = Color(0xFF1A1A1A),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                // This card is the only place a second player is told which keys are theirs, so
-                // it has to name both seats when there are two.
-                text = if (isCoop) {
-                    stringResource(TanksStrings.controlsHintCoop)
-                } else {
-                    stringResource(TanksStrings.controlsHint)
-                },
-                color = Color(0xFF242424),
-                fontSize = 13.sp
-            )
-        }
+private fun EndOfStageBanner(text: String, color: Color) {
+    // Starts a fifth of the screen up and falls into place, once.
+    var landed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { landed = true }
+    val drop by animateFloatAsState(
+        targetValue = if (landed) 0f else -1f,
+        animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing),
+        label = "banner-drop"
+    )
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
+        val fall = maxHeight / 5
+        PixelTitle(
+            text = text,
+            color = color,
+            style = LocalPixelType.current.display,
+            modifier = Modifier.graphicsLayer { translationY = drop * fall.toPx() }
+        )
     }
 }
 

@@ -24,6 +24,12 @@ interface TanksSoundPlayer {
      * starts as soon as [loadMusic] brings it.
      */
     fun setMusic(track: TanksMusic?) = Unit
+
+    /**
+     * The player's own levels, 0 to 1, for the music and for everything else. They scale each
+     * platform's built-in balance between the two rather than replacing it.
+     */
+    fun setVolumes(music: Float, effects: Float) = Unit
 }
 
 object SilentSoundPlayer : TanksSoundPlayer {

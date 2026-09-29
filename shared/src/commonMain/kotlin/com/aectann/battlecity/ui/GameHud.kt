@@ -1,5 +1,8 @@
 package com.aectann.battlecity.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -22,9 +25,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -116,16 +122,94 @@ internal fun Density.snapBoardSide(room: Dp, cells: Int): Dp {
 /** How thick the steel ring round the board is. */
 private val BoardFrame = PixelUnitDp * 4
 
-/** The board in a riveted steel ring: the arena as a machined thing, not a hole in the page. */
+/**
+ * What covers the board between stages: [closed] while a stage is being set up, [title] and
+ * [hint] lettered on it, [onTap] to open it early.
+ */
+internal class StageCurtain(val closed: Boolean, val title: String, val hint: String?, val onTap: () -> Unit)
+
+/**
+ * The board in a riveted steel ring: the arena as a machined thing, not a hole in the page. The
+ * whole assembly shakes with [fx]; the curtain closes over the board, not the ring.
+ */
 @Composable
-private fun FramedBoard(side: Dp, state: BattleCityRenderState, assets: TanksAssets, animationFrame: Int) {
+private fun FramedBoard(
+    side: Dp,
+    state: BattleCityRenderState,
+    assets: TanksAssets,
+    animationFrame: Int,
+    fx: TanksFx?,
+    curtain: StageCurtain?
+) {
+    val cells = maxOf(state.tiles.cols, state.tiles.rows)
     Box(
         modifier = Modifier
             .size(side + BoardFrame * 2)
+            .graphicsLayer {
+                if (fx != null) {
+                    fx.tick.intValue
+                    val tile = side.toPx() / cells
+                    translationX = floor(fx.shakeX * tile)
+                    translationY = floor(fx.shakeY * tile)
+                }
+            }
             .drawBehind { drawPixelPanel(framed = true) },
         contentAlignment = Alignment.Center
     ) {
-        TanksBoard(modifier = Modifier.size(side), state = state, assets = assets, animationFrame = animationFrame)
+        TanksBoard(modifier = Modifier.size(side), state = state, assets = assets, animationFrame = animationFrame, fx = fx)
+        if (curtain != null) StageCurtainView(curtain, Modifier.size(side))
+    }
+}
+
+/**
+ * Two steel shutters over the board with the stage's name on a plate between them. They slide
+ * apart as the run starts, which is the stage's start, marked, rather than a grey card cut away.
+ */
+@Composable
+private fun StageCurtainView(curtain: StageCurtain, modifier: Modifier) {
+    val open by animateFloatAsState(
+        targetValue = if (curtain.closed) 0f else 1f,
+        animationSpec = tween(durationMillis = if (curtain.closed) 0 else 520, easing = FastOutSlowInEasing),
+        label = "curtain"
+    )
+    if (open >= 1f) return
+    BoxWithConstraints(
+        modifier = modifier
+            .clipToBounds()
+            .pointerInput(curtain.onTap) { detectTapGestures { curtain.onTap() } }
+    ) {
+        val half = maxWidth / 2
+        listOf(-1f, 1f).forEach { sideSign ->
+            Box(
+                modifier = Modifier
+                    .width(half)
+                    .fillMaxHeight()
+                    .align(if (sideSign < 0) Alignment.CenterStart else Alignment.CenterEnd)
+                    .graphicsLayer { translationX = sideSign * half.toPx() * open }
+                    .drawBehind {
+                        drawPixelBlock(PixelMaterial.Steel, lift = 2)
+                        // Horizontal seams, so the shutters read as plates rather than as a fill.
+                        val u = pixelUnit()
+                        var y = size.height / 6f
+                        while (y < size.height - u) {
+                            drawRect(SteelDark, Offset(u, floor(y)), Size(size.width - 2 * u, u))
+                            y += size.height / 6f
+                        }
+                    }
+            )
+        }
+        Box(
+            modifier = Modifier.align(Alignment.Center).graphicsLayer { alpha = (1f - open * 2.5f).coerceIn(0f, 1f) },
+            contentAlignment = Alignment.Center
+        ) {
+            PixelPanel(contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp)) {
+                PixelTitle(curtain.title, style = LocalPixelType.current.title)
+                curtain.hint?.let { hint ->
+                    Spacer(Modifier.height(8.dp))
+                    Text(hint, color = MutedText, style = LocalPixelType.current.caption, textAlign = TextAlign.Center)
+                }
+            }
+        }
     }
 }
 
@@ -159,7 +243,9 @@ internal fun TanksPlayfield(
     isFirePressed: Boolean,
     onDirectionChanged: (BattleCityDirection?) -> Unit,
     onFirePressedChanged: (Boolean) -> Unit,
-    onStartPause: () -> Unit
+    onStartPause: () -> Unit,
+    fx: TanksFx? = null,
+    curtain: StageCurtain? = null
 ) {
     val cells = maxOf(state.tiles.cols, state.tiles.rows)
     val score = campaignScore + state.stageScore
@@ -203,7 +289,7 @@ internal fun TanksPlayfield(
                         )
                     }
                 }
-                FramedBoard(side, state, assets, animationFrame)
+                FramedBoard(side, state, assets, animationFrame, fx, curtain)
                 PixelPanel(
                     modifier = Modifier.width(panelWidth).height(framed),
                     contentPadding = PaddingValues(12.dp),
@@ -247,7 +333,7 @@ internal fun TanksPlayfield(
                 )
                 // The board sits in the middle of whatever height is left, not up under the strip.
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    FramedBoard(side, state, assets, animationFrame)
+                    FramedBoard(side, state, assets, animationFrame, fx, curtain)
                 }
                 if (touchControls) {
                     Row(
@@ -305,7 +391,7 @@ private fun PlayerCard(player: BattleCityPlayerRenderState, assets: TanksAssets,
         Spacer(Modifier.height(4.dp))
         Row {
             repeat(4) { index ->
-                PixelIconImage(PixelIcons.Star, if (index < level) GoldLight else SteelDark, cell = hudCell(big))
+                PixelIconImage(PixelIcons.Star, if (index < level) GoldLight else SteelFace, cell = hudCell(big))
             }
         }
     }

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -32,7 +34,12 @@ fun SettingsScreen(
     privacyOptionsRequired: Boolean = false,
     privacyOptionsBusy: Boolean = false,
     privacyOptionsFailed: Boolean = false,
-    onPrivacyOptions: () -> Unit = {}
+    onPrivacyOptions: () -> Unit = {},
+    /** 0 to 10. A host that has no music leaves these at their defaults and gets no sliders. */
+    musicLevel: Int? = null,
+    effectsLevel: Int? = null,
+    onMusicLevelChange: (Int) -> Unit = {},
+    onEffectsLevelChange: (Int) -> Unit = {}
 ) {
     var showResetConfirm by remember { mutableStateOf(false) }
     var resetDone by remember { mutableStateOf(false) }
@@ -54,6 +61,15 @@ fun SettingsScreen(
                     offLabel = stringResource(TanksStrings.commonOff),
                     focusRequester = soundFocus
                 )
+            }
+
+            if (musicLevel != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                LevelRow(stringResource(TanksStrings.settingsMusic), musicLevel, onMusicLevelChange, enabled = soundEnabled)
+            }
+            if (effectsLevel != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                LevelRow(stringResource(TanksStrings.settingsEffects), effectsLevel, onEffectsLevelChange, enabled = soundEnabled)
             }
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -91,33 +107,57 @@ fun SettingsScreen(
     }
 
     if (showResetConfirm) {
-        // Reset cannot be undone, so Enter keeps the progress.
-        val keep = rememberInitialFocus()
-        PixelDialog(
-            title = stringResource(TanksStrings.settingsResetProgress),
+        ResetDialog(
             onDismiss = { showResetConfirm = false },
-            buttons = {
-                PixelButton(
-                    text = stringResource(TanksStrings.commonCancel),
-                    onClick = { showResetConfirm = false },
-                    material = PixelMaterial.Steel,
-                    focusRequester = keep
-                )
-                PixelButton(
-                    text = stringResource(TanksStrings.commonReset),
-                    onClick = {
-                        showResetConfirm = false
-                        resetDone = true
-                        onResetProgress()
-                    }
-                )
+            onReset = {
+                showResetConfirm = false
+                resetDone = true
+                onResetProgress()
             }
-        ) {
-            Text(
-                text = stringResource(TanksStrings.settingsResetQuestion),
-                color = Color.White,
-                textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** One volume: its name, and a slider that dims while the master switch has sound off. */
+@Composable
+private fun LevelRow(label: String, level: Int, onChange: (Int) -> Unit, enabled: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().pixelInset().padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = if (enabled) Color.White else DisabledText, style = LocalPixelType.current.heading)
+        Spacer(Modifier.width(16.dp))
+        PixelSlider(
+            value = level,
+            onValueChange = onChange,
+            modifier = Modifier.widthIn(max = 260.dp).weight(1f),
+            label = label
+        )
+    }
+}
+
+@Composable
+private fun ResetDialog(onDismiss: () -> Unit, onReset: () -> Unit) {
+    // Reset cannot be undone, so Enter keeps the progress.
+    val keep = rememberInitialFocus()
+    PixelDialog(
+        title = stringResource(TanksStrings.settingsResetProgress),
+        onDismiss = onDismiss,
+        buttons = {
+            PixelButton(
+                text = stringResource(TanksStrings.commonCancel),
+                onClick = onDismiss,
+                material = PixelMaterial.Steel,
+                focusRequester = keep
             )
+            PixelButton(text = stringResource(TanksStrings.commonReset), onClick = onReset)
         }
+    ) {
+        Text(
+            text = stringResource(TanksStrings.settingsResetQuestion),
+            color = Color.White,
+            textAlign = TextAlign.Center
+        )
     }
 }

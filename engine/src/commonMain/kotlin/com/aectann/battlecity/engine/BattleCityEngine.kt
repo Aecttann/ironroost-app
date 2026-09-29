@@ -6,6 +6,9 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 private const val TankSize = 1f
+
+/** What any power-up is worth on pickup, on top of what it does. */
+private const val PowerUpPoints = 500
 private const val MaxActiveEnemies = 4
 
 /**
@@ -144,6 +147,7 @@ class BattleCityEngine(
     private val powerUps = mutableListOf<PowerUp>()
     private val effects = mutableListOf<Effect>()
     private val events = mutableListOf<BattleCitySoundEvent>()
+    private val fx = mutableListOf<BattleCityFxEvent>()
     private val killsByType = linkedMapOf<String, Int>()
     private val powerUpsCollected = linkedMapOf<String, Int>()
 
@@ -318,6 +322,7 @@ class BattleCityEngine(
         powerUps.clear()
         effects.clear()
         events.clear()
+        fx.clear()
         killsByType.clear()
         powerUpsCollected.clear()
 
@@ -372,6 +377,7 @@ class BattleCityEngine(
         status = BattleCityStatus.Running
         accumulator = 0f
         events.clear()
+        fx.clear()
         spawnPlayer(slot)
         return renderState()
     }
@@ -382,6 +388,7 @@ class BattleCityEngine(
      */
     fun step(elapsedSeconds: Float, inputs: BattleCityInputs): BattleCityStep {
         events.clear()
+        fx.clear()
         // A cleared endless wave holds the board still until beginNextWave: the pick screen is
         // over a live board, and letting it run would move tanks under the cards.
         if (status != BattleCityStatus.Running || waveCleared) {
@@ -397,7 +404,7 @@ class BattleCityEngine(
                 break
             }
         }
-        return BattleCityStep(renderState(), events.toList())
+        return BattleCityStep(renderState(), events.toList(), fx.toList())
     }
 
     private fun advance(dt: Float, inputs: BattleCityInputs) {
@@ -552,6 +559,7 @@ class BattleCityEngine(
         slot.canSwim = false
         slot.stunRemaining = 0f
         events.add(BattleCitySoundEvent.ExplosionBig)
+        fx.add(BattleCityFxEvent(BattleCityFxKind.PlayerDestroyed, current.x + TankSize / 2f, current.y + TankSize / 2f))
 
         if (slot.lives <= 0) {
             slot.lives = 0
@@ -726,6 +734,14 @@ class BattleCityEngine(
             )
         )
         events.add(BattleCitySoundEvent.Shoot)
+        fx.add(
+            BattleCityFxEvent(
+                BattleCityFxKind.Shot,
+                centerX + tank.direction.dx * offset,
+                centerY + tank.direction.dy * offset,
+                direction = tank.direction
+            )
+        )
     }
 
     private fun bulletsOf(ownerId: String): Int = bullets.count { it.ownerId == ownerId }
@@ -743,6 +759,13 @@ class BattleCityEngine(
             if (tryRicochet(bullet)) return@removeAll false
             addEffect(bullet.x - 0.5f, bullet.y - 0.5f, BattleCityEffectKind.Explosion, ExplosionSeconds * 0.6f)
             events.add(BattleCitySoundEvent.HitSteel)
+            fx.add(
+                BattleCityFxEvent(
+                    BattleCityFxKind.SteelHit,
+                    bullet.x.coerceIn(0f, cols.toFloat()),
+                    bullet.y.coerceIn(0f, rows.toFloat())
+                )
+            )
             true
         }
 
@@ -779,6 +802,7 @@ class BattleCityEngine(
             addEffect(sample.x - 0.5f, sample.y - 0.5f, BattleCityEffectKind.Explosion, ExplosionSeconds * 0.6f)
             bullets.removeAll(doomed)
             events.add(BattleCitySoundEvent.HitSteel)
+            fx.add(BattleCityFxEvent(BattleCityFxKind.SteelHit, sample.x, sample.y))
         }
     }
 
@@ -794,6 +818,7 @@ class BattleCityEngine(
             hit.hp--
             if (hit.hp > 0) {
                 events.add(BattleCitySoundEvent.HitSteel)
+                fx.add(BattleCityFxEvent(BattleCityFxKind.ArmorHit, hit.x + TankSize / 2f, hit.y + TankSize / 2f))
                 return true
             }
 
@@ -803,6 +828,14 @@ class BattleCityEngine(
             addScore(hit.score, shooter)
             addEffect(hit.x, hit.y, BattleCityEffectKind.Explosion, ExplosionSeconds, sizeCells = 2f)
             events.add(BattleCitySoundEvent.ExplosionBig)
+            fx.add(
+                BattleCityFxEvent(
+                    BattleCityFxKind.EnemyDestroyed,
+                    hit.x + TankSize / 2f,
+                    hit.y + TankSize / 2f,
+                    points = hit.score
+                )
+            )
             if (hit.isBonus) dropPowerUp()
             enemySpawnTimer = EnemySpawnDelay
             return true
@@ -812,6 +845,7 @@ class BattleCityEngine(
         val tank = target.tank ?: return false
         if (tank.shieldRemaining > 0f) {
             events.add(BattleCitySoundEvent.HitSteel)
+            fx.add(BattleCityFxEvent(BattleCityFxKind.SteelHit, bullet.x, bullet.y))
             return true
         }
 
@@ -821,6 +855,7 @@ class BattleCityEngine(
         if (tank.hp > 0) {
             tank.shieldRemaining = ArmorHitGraceSeconds
             events.add(BattleCitySoundEvent.HitSteel)
+            fx.add(BattleCityFxEvent(BattleCityFxKind.ArmorHit, tank.x + TankSize / 2f, tank.y + TankSize / 2f))
             return true
         }
 
@@ -841,6 +876,7 @@ class BattleCityEngine(
             friendly.stunRemaining = FriendlyFireStunSeconds
         }
         events.add(BattleCitySoundEvent.HitSteel)
+        fx.add(BattleCityFxEvent(BattleCityFxKind.SteelHit, bullet.x, bullet.y))
         return true
     }
 
@@ -879,6 +915,7 @@ class BattleCityEngine(
         bullet.direction = chosen
         bullet.bouncesLeft--
         events.add(BattleCitySoundEvent.HitSteel)
+        fx.add(BattleCityFxEvent(BattleCityFxKind.SteelHit, bullet.x, bullet.y))
         return true
     }
 
@@ -892,6 +929,7 @@ class BattleCityEngine(
                 damageBrick(cellX, cellY, bullet)
                 addEffect(bullet.x - 0.5f, bullet.y - 0.5f, BattleCityEffectKind.Explosion, ExplosionSeconds * 0.6f)
                 events.add(BattleCitySoundEvent.HitBrick)
+                fx.add(BattleCityFxEvent(BattleCityFxKind.BrickHit, bullet.x, bullet.y, direction = bullet.direction))
                 true
             }
 
@@ -899,6 +937,7 @@ class BattleCityEngine(
                 bullet.breaksSteel -> {
                     setTile(cellX, cellY, '.')
                     events.add(BattleCitySoundEvent.HitBrick)
+                    fx.add(BattleCityFxEvent(BattleCityFxKind.SteelHit, bullet.x, bullet.y, direction = bullet.direction))
                     addEffect(bullet.x - 0.5f, bullet.y - 0.5f, BattleCityEffectKind.Explosion, ExplosionSeconds * 0.6f)
                     true
                 }
@@ -907,6 +946,7 @@ class BattleCityEngine(
 
                 else -> {
                     events.add(BattleCitySoundEvent.HitSteel)
+                    fx.add(BattleCityFxEvent(BattleCityFxKind.SteelHit, bullet.x, bullet.y, direction = bullet.direction))
                     addEffect(bullet.x - 0.5f, bullet.y - 0.5f, BattleCityEffectKind.Explosion, ExplosionSeconds * 0.6f)
                     true
                 }
@@ -918,6 +958,7 @@ class BattleCityEngine(
                 addEffect(cellX.toFloat() - 0.5f, cellY.toFloat() - 0.5f, BattleCityEffectKind.Explosion, ExplosionSeconds, sizeCells = 2f)
                 events.add(BattleCitySoundEvent.ExplosionBig)
                 events.add(BattleCitySoundEvent.GameOver)
+                fx.add(BattleCityFxEvent(BattleCityFxKind.BaseDestroyed, cellX + 0.5f, cellY + 0.5f))
                 bumpGrid()
                 true
             }
@@ -984,6 +1025,14 @@ class BattleCityEngine(
             if (collector != null) {
                 iterator.remove()
                 applyPowerUp(powerUp.type, collector)
+                fx.add(
+                    BattleCityFxEvent(
+                        BattleCityFxKind.PowerUpTaken,
+                        powerUp.x + 0.5f,
+                        powerUp.y + 0.5f,
+                        points = PowerUpPoints
+                    )
+                )
             }
         }
     }
@@ -1028,6 +1077,14 @@ class BattleCityEngine(
                     killsByType[enemy.type] = (killsByType[enemy.type] ?: 0) + 1
                     addScore(enemy.score, slot)
                     addEffect(enemy.x, enemy.y, BattleCityEffectKind.Explosion, ExplosionSeconds, sizeCells = 2f)
+                    fx.add(
+                        BattleCityFxEvent(
+                            BattleCityFxKind.EnemyDestroyed,
+                            enemy.x + TankSize / 2f,
+                            enemy.y + TankSize / 2f,
+                            points = enemy.score
+                        )
+                    )
                 }
                 enemySpawnTimer = EnemySpawnDelay
                 events.add(BattleCitySoundEvent.ExplosionBig)
@@ -1044,7 +1101,7 @@ class BattleCityEngine(
                 events.add(BattleCitySoundEvent.PowerUp)
             }
         }
-        addScore(500, slot)
+        addScore(PowerUpPoints, slot)
     }
 
     private fun updateFortify(dt: Float) {

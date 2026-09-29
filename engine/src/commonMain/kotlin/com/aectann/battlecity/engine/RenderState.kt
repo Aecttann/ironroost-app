@@ -134,5 +134,43 @@ data class BattleCityRenderState(
 
 data class BattleCityStep(
     val state: BattleCityRenderState,
-    val events: List<BattleCitySoundEvent>
+    val events: List<BattleCitySoundEvent>,
+    /** The same moments with a place on the board, for the screen to dress up. */
+    val fx: List<BattleCityFxEvent> = emptyList()
+)
+
+/** What happened, for the screen's effects. The sounds say that something did; this says where. */
+enum class BattleCityFxKind {
+    /** A shell leaves a barrel: at the muzzle, flying [BattleCityFxEvent.direction]. */
+    Shot,
+
+    /** A shell chips a brick wall. */
+    BrickHit,
+
+    /** A shell stops on steel, the board's edge, another shell or a shield. */
+    SteelHit,
+
+    /** An armoured enemy took a hit and is still standing. */
+    ArmorHit,
+
+    /** An enemy destroyed, for [BattleCityFxEvent.points]. */
+    EnemyDestroyed,
+
+    /** A player's tank destroyed. */
+    PlayerDestroyed,
+
+    /** The base destroyed: the run is lost. */
+    BaseDestroyed,
+
+    /** A power-up picked up, for [BattleCityFxEvent.points]. */
+    PowerUpTaken
+}
+
+/** One moment for the screen's effects, at [x], [y] in board cells (fractional, not top-left). */
+data class BattleCityFxEvent(
+    val kind: BattleCityFxKind,
+    val x: Float,
+    val y: Float,
+    val points: Int = 0,
+    val direction: BattleCityDirection? = null
 )

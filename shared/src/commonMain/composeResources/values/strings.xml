@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">Power</string>
     <string name="tanks_enemy_armor">Armor</string>
     <string name="tanks_sound">Sound</string>
+    <string name="settings_music">Music</string>
+    <string name="settings_effects">Effects</string>
     <string name="tanks_close">Close</string>
     <string name="tanks_controls_hint">Touch controls or WASD / arrows • Space: fire • P: pause</string>
     <string name="menu_play">Play</string>

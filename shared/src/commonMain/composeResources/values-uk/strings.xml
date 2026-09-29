@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">Потужний</string>
     <string name="tanks_enemy_armor">Броньований</string>
     <string name="tanks_sound">Звук</string>
+    <string name="settings_music">Музика</string>
+    <string name="settings_effects">Ефекти</string>
     <string name="tanks_close">Закрити</string>
     <string name="tanks_controls_hint">Сенсорне керування або WASD / стрілки • Пробіл: вогонь • P: пауза</string>
     <string name="menu_play">Грати</string>

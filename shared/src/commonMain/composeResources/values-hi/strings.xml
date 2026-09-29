@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">शक्तिशाली</string>
     <string name="tanks_enemy_armor">कवचधारी</string>
     <string name="tanks_sound">ध्वनि</string>
+    <string name="settings_music">संगीत</string>
+    <string name="settings_effects">इफ़ेक्ट्स</string>
     <string name="tanks_close">बंद करें</string>
     <string name="tanks_controls_hint">टच कंट्रोल या WASD / तीर • स्पेस: फ़ायर • P: पॉज़</string>
     <string name="menu_play">खेलें</string>

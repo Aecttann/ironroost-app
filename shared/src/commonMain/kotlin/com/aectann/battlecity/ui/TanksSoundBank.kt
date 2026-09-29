@@ -21,11 +21,14 @@ internal class TanksSoundBank {
     private var enabled: Boolean = true
     private var music: TanksMusic? = null
     private val musicFiles = mutableMapOf<TanksMusic, ByteArray>()
+    private var musicVolume = 1f
+    private var effectsVolume = 1f
 
     fun install(decoded: TanksSoundPlayer) {
         player.release()
         player = decoded
         decoded.setEnabled(enabled)
+        decoded.setVolumes(musicVolume, effectsVolume)
         musicFiles.forEach { (track, bytes) -> decoded.loadMusic(track, bytes) }
         decoded.setMusic(music)
         pendingClip?.let { decoded.play(it) }
@@ -53,6 +56,12 @@ internal class TanksSoundBank {
         if (music == track) return
         music = track
         player.setMusic(track)
+    }
+
+    fun setVolumes(music: Float, effects: Float) {
+        musicVolume = music.coerceIn(0f, 1f)
+        effectsVolume = effects.coerceIn(0f, 1f)
+        player.setVolumes(musicVolume, effectsVolume)
     }
 
     fun release() {

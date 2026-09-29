@@ -53,16 +53,18 @@ enum class TanksClip(val path: String) {
  *
  * A file holds [repeats] back-to-back copies of a [loopSeconds]-long seamless loop. MP3 pads
  * the start and end of a file with a few milliseconds that decoders trim differently, so a
- * player that can loop a window of the file (Web Audio) loops the second to the second-last
- * copy: the music is the same on both sides of that seam whatever the decoder did at the ends.
- * A player that can only loop the whole file hears the padding once per file, not once per loop.
+ * player that can loop a window of the file (Web Audio) loops one that starts half a loop in
+ * and runs a whole number of loops, well clear of both ends: the music is the same on both
+ * sides of that seam whatever the decoder did with the padding. A player that can only loop
+ * the whole file hears the padding once per file, not once per loop.
  */
 enum class TanksMusic(val path: String, val loopSeconds: Double, val repeats: Int) {
-    Menu("$AudioMusic/menu_theme.mp3", loopSeconds = 11.294127, repeats = 4);
+    Menu("$AudioMusic/menu_theme.mp3", loopSeconds = 11.294127, repeats = 4),
+    Battle("$AudioMusic/battle_theme.mp3", loopSeconds = 74.254150, repeats = 2);
 
     /** The window a seek-capable player should loop, in seconds from the start of the file. */
-    val loopStartSeconds: Double get() = loopSeconds
-    val loopEndSeconds: Double get() = loopSeconds * (repeats - 1)
+    val loopStartSeconds: Double get() = loopSeconds / 2
+    val loopEndSeconds: Double get() = loopStartSeconds + loopSeconds * (repeats - 1)
 }
 
 /**

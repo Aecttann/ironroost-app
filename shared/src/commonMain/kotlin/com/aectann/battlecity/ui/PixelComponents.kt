@@ -8,6 +8,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -57,6 +60,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -68,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.aectann.battlecity.TanksClip
+import kotlin.math.floor
 
 /**
  * What a control is cut from. Brick carries the main actions — it is the board's own wall, the
@@ -524,6 +529,76 @@ internal fun PixelToggle(
             )
         }
     }
+}
+
+/**
+ * A level from 0 to [steps], shown as a row of lamps. Left and right (A/D, and Q on AZERTY)
+ * step it while it has focus — it takes those keys from the menu for as long as it does — and
+ * a tap or a drag along it sets it directly. [onValueChange] fires for every step, so the caller
+ * can let the player hear the level they picked.
+ */
+@Composable
+internal fun PixelSlider(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    steps: Int = 10,
+    label: String? = null
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val inputMode = LocalPixelInputMode.current
+    val cursor = focused && inputMode.keyboard
+    fun set(level: Int) {
+        val clamped = level.coerceIn(0, steps)
+        if (clamped != value) onValueChange(clamped)
+    }
+    Box(
+        modifier = modifier
+            .height(36.dp)
+            .then(if (label != null) Modifier.semantics { contentDescription = label } else Modifier)
+            .onFocusChanged { inputMode.horizontalKeysTaken = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                val delta = when (event.key) {
+                    Key.DirectionLeft, Key.A, Key.Q -> -1
+                    Key.DirectionRight, Key.D -> 1
+                    else -> return@onPreviewKeyEvent false
+                }
+                if (event.type == KeyEventType.KeyDown) {
+                    inputMode.keyboard = true
+                    set(value + delta)
+                }
+                true
+            }
+            .focusable(interactionSource = interaction)
+            .pointerInput(steps) {
+                detectTapGestures { position -> set(((position.x / size.width) * steps + 0.5f).toInt()) }
+            }
+            .pointerInput(steps) {
+                detectHorizontalDragGestures { change, _ ->
+                    set(((change.position.x / size.width) * steps + 0.5f).toInt())
+                }
+            }
+            .drawBehind {
+                val u = pixelUnit()
+                drawRect(PanelDark, Offset.Zero, size)
+                drawRect(if (cursor) GoldLight else Ink, Offset.Zero, Size(size.width, u))
+                drawRect(if (cursor) GoldLight else Ink, Offset.Zero, Size(u, size.height))
+                drawRect(if (cursor) GoldLight else PanelLight, Offset(0f, size.height - u), Size(size.width, u))
+                drawRect(if (cursor) GoldLight else PanelLight, Offset(size.width - u, 0f), Size(u, size.height))
+                val gap = 2 * u
+                val inner = size.width - 2 * gap
+                val lamp = floor((inner - gap * (steps - 1)) / steps / u) * u
+                val start = (size.width - (lamp * steps + gap * (steps - 1))) / 2f
+                for (index in 0 until steps) {
+                    val lit = index < value
+                    val x = start + index * (lamp + gap)
+                    drawRect(Ink, Offset(x, gap), Size(lamp, size.height - 2 * gap))
+                    drawRect(if (lit) AccentGold else SteelDark, Offset(x + u, gap + u), Size(lamp - 2 * u, size.height - 2 * gap - 2 * u))
+                    if (lit) drawRect(GoldLight, Offset(x + u, gap + u), Size(lamp - 2 * u, u))
+                }
+            }
+    )
 }
 
 /** A text box sunk into the panel it sits on, with a gold ring and caret while typing. */

@@ -143,6 +143,8 @@ private class AndroidSoundPlayer(
     private var musicWanted: TanksMusic? = null
     private var musicPlaying: TanksMusic? = null
     private var musicPlayer: MediaPlayer? = null
+    private var musicLevel = 1f
+    private var effectsLevel = 1f
 
     init {
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
@@ -177,6 +179,13 @@ private class AndroidSoundPlayer(
         }
     }
 
+    override fun setVolumes(music: Float, effects: Float) {
+        musicLevel = music.coerceIn(0f, 1f)
+        effectsLevel = effects.coerceIn(0f, 1f)
+        musicPlayer?.setVolume(MusicVolume * musicLevel, MusicVolume * musicLevel)
+        if (engineStreamId != 0) soundPool.setVolume(engineStreamId, EngineVolume * effectsLevel, EngineVolume * effectsLevel)
+    }
+
     override fun setMusic(track: TanksMusic?) {
         musicWanted = track
         reconcileMusic()
@@ -197,7 +206,7 @@ private class AndroidSoundPlayer(
                 )
                 setDataSource(file.absolutePath)
                 isLooping = true
-                setVolume(MusicVolume, MusicVolume)
+                setVolume(MusicVolume * musicLevel, MusicVolume * musicLevel)
                 prepare()
                 start()
             }
@@ -217,7 +226,7 @@ private class AndroidSoundPlayer(
     override fun play(clip: TanksClip) {
         val id = soundIds[clip] ?: return
         if (!enabled || released || ready[id] != true) return
-        soundPool.play(id, SfxVolume, SfxVolume, 1, 0, 1f)
+        soundPool.play(id, SfxVolume * effectsLevel, SfxVolume * effectsLevel, 1, 0, 1f)
     }
 
     override fun setEngineRunning(running: Boolean) {
@@ -237,7 +246,7 @@ private class AndroidSoundPlayer(
     private fun startEngineLoop() {
         val id = soundIds[TanksClip.EngineLoop] ?: return
         if (!enabled || released || ready[id] != true || engineStreamId != 0) return
-        engineStreamId = soundPool.play(id, EngineVolume, EngineVolume, 0, -1, 1f)
+        engineStreamId = soundPool.play(id, EngineVolume * effectsLevel, EngineVolume * effectsLevel, 0, -1, 1f)
     }
 
     private fun stopEngineLoop() {

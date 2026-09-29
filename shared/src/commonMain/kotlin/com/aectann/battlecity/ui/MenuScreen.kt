@@ -276,6 +276,8 @@ private fun AttractBattle(assets: TanksAssets?, modifier: Modifier) {
         BattleCityEngine(stageNumber = 0, level = loadedLevel, seed = AttractSeed, initialLives = listOf(9, 9))
     }
     val pilot = remember(loadedLevel) { TanksAttractPilot(seed = AttractSeed) }
+    // The chips and flashes, but not the shake or the points: this is scenery behind buttons.
+    val fx = remember(loadedLevel) { TanksFx(seed = AttractSeed.toInt(), popups = false, shakes = false) }
     var state by remember(engine) { mutableStateOf(engine.currentState()) }
     var animationFrame by remember(engine) { mutableIntStateOf(0) }
 
@@ -287,8 +289,9 @@ private fun AttractBattle(assets: TanksAssets?, modifier: Modifier) {
             val now = withFrameNanos { it }
             val delta = ((now - previous) / 1_000_000_000.0).toFloat().coerceIn(0f, 0.25f)
             previous = now
+            fx.update(delta)
             state = if (state.status == BattleCityStatus.Running) {
-                engine.step(delta, pilot.inputs(state, delta)).state
+                engine.step(delta, pilot.inputs(state, delta)).also { fx.onEvents(it.fx) }.state
             } else {
                 overFor += delta
                 if (overFor < RoundOverHoldSeconds) state else engine.reset().also { overFor = 0f }
@@ -296,7 +299,7 @@ private fun AttractBattle(assets: TanksAssets?, modifier: Modifier) {
             animationFrame = ++frames
         }
     }
-    TanksBoard(modifier = modifier, state = state, assets = assets, animationFrame = animationFrame)
+    TanksBoard(modifier = modifier, state = state, assets = assets, animationFrame = animationFrame, fx = fx)
 }
 
 /** Fixed, so the menu opens on the same battle every time — and every screenshot agrees. */

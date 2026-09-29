@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">パワー</string>
     <string name="tanks_enemy_armor">アーマー</string>
     <string name="tanks_sound">サウンド</string>
+    <string name="settings_music">音楽</string>
+    <string name="settings_effects">効果音</string>
     <string name="tanks_close">閉じる</string>
     <string name="tanks_controls_hint">タッチ操作またはWASD / 矢印キー • スペース：発射 • P：ポーズ</string>
     <string name="menu_play">プレイ</string>

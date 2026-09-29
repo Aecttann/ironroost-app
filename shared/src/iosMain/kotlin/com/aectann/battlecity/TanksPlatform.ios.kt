@@ -131,6 +131,8 @@ private class IosSoundPlayer(
     private val musicPlayers = mutableMapOf<TanksMusic, AVAudioPlayer>()
     private var musicWanted: TanksMusic? = null
     private var musicPlaying: TanksMusic? = null
+    private var musicLevel = 1f
+    private var effectsLevel = 1f
 
     override fun setEnabled(enabled: Boolean) {
         if (this.enabled == enabled) return
@@ -144,11 +146,18 @@ private class IosSoundPlayer(
         val data = bytes.toNSData() ?: return
         makePlayer(data)?.let { player ->
             player.numberOfLoops = -1
-            player.setVolume(MusicVolume)
+            player.setVolume(MusicVolume * musicLevel)
             player.prepareToPlay()
             musicPlayers[track] = player
             reconcileMusic()
         }
+    }
+
+    override fun setVolumes(music: Float, effects: Float) {
+        musicLevel = music.coerceIn(0f, 1f)
+        effectsLevel = effects.coerceIn(0f, 1f)
+        musicPlayers.values.forEach { it.setVolume(MusicVolume * musicLevel) }
+        engineLoop?.setVolume(EngineVolume * effectsLevel)
     }
 
     override fun setMusic(track: TanksMusic?) {
@@ -171,6 +180,7 @@ private class IosSoundPlayer(
         if (!enabled || released) return
         val voices = pools[clip] ?: return
         val voice = voices.firstOrNull { !it.playing } ?: voices.first()
+        voice.setVolume(SfxVolume * effectsLevel)
         voice.currentTime = 0.0
         voice.play()
     }

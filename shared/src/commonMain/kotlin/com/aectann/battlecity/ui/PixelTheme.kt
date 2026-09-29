@@ -118,6 +118,12 @@ internal fun TextStyle.shadowed(color: Color = Ink): TextStyle {
 @Stable
 internal class PixelInputMode {
     var keyboard by mutableStateOf(false)
+
+    /**
+     * A slider has focus and wants left and right for itself; the menu keys leave them alone.
+     * A plain field: only key handlers read it.
+     */
+    var horizontalKeysTaken = false
 }
 
 internal val LocalPixelInputMode = staticCompositionLocalOf { PixelInputMode() }

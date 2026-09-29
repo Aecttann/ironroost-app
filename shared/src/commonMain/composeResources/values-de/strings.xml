@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">Stark</string>
     <string name="tanks_enemy_armor">Panzerung</string>
     <string name="tanks_sound">Ton</string>
+    <string name="settings_music">Musik</string>
+    <string name="settings_effects">Effekte</string>
     <string name="tanks_close">Schließen</string>
     <string name="tanks_controls_hint">Touch-Steuerung oder WASD / Pfeiltasten • Leertaste: Feuer • P: Pause</string>
     <string name="menu_play">Spielen</string>

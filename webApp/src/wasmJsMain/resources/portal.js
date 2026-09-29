@@ -40,6 +40,9 @@
     // The tracks are levelled to about -18 LUFS; this sits them under the effects rather than
     // across them.
     const MusicVolume = 0.5;
+    const EngineVolume = 0.3;
+    // The player's own levels from Settings, 0 to 1, scaling the balance above.
+    const levels = { music: 1, effects: 1 };
 
     const sdk = () => window.CrazyGames?.SDK;
 
@@ -126,7 +129,7 @@
             try {
                 const context = new Context();
                 const effects = context.createGain();
-                effects.gain.value = EffectsVolume;
+                effects.gain.value = EffectsVolume * levels.effects;
                 effects.connect(context.destination);
                 const music = context.createGain();
                 music.gain.value = 0;
@@ -212,7 +215,7 @@
     function reconcileMusic() {
         const music = state.audio.music;
         const context = state.audio.context;
-        if (music.gain) music.gain.gain.value = audioCanPlay() ? MusicVolume : 0;
+        if (music.gain) music.gain.gain.value = audioCanPlay() ? MusicVolume * levels.music : 0;
         if (!context || music.playing === music.wanted) return;
         stopMusicSource();
         const buffer = music.wanted && music.buffers.get(music.wanted);
@@ -518,7 +521,7 @@
                 const engine = new Audio(source);
                 engine.loop = true;
                 engine.preload = "auto";
-                engine.volume = 0.3;
+                engine.volume = EngineVolume * levels.effects;
                 state.audio.engine = engine;
                 reconcileAudio();
             }
@@ -548,7 +551,7 @@
             const source = state.audio.sources.get(name);
             if (!source) return;
             const voice = new Audio(source);
-            voice.volume = EffectsVolume;
+            voice.volume = EffectsVolume * levels.effects;
             state.audio.voices.add(voice);
             const cleanup = () => state.audio.voices.delete(voice);
             voice.addEventListener("ended", cleanup, { once: true });
@@ -575,6 +578,15 @@
             music.encoded.clear();
             music.buffers.clear();
             music.loops.clear();
+        },
+
+        /** The music and effects levels from Settings, each 0 to 1. */
+        audioSetVolumes(music, effects) {
+            levels.music = Math.max(0, Math.min(1, Number(music) || 0));
+            levels.effects = Math.max(0, Math.min(1, Number(effects) || 0));
+            if (state.audio.effects) state.audio.effects.gain.value = EffectsVolume * levels.effects;
+            if (state.audio.engine) state.audio.engine.volume = EngineVolume * levels.effects;
+            reconcileMusic();
         },
 
         /** A music track's MP3, and the window of it to loop, in seconds. */

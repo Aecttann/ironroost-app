@@ -124,6 +124,10 @@ private class BrowserTanksSoundPlayer(
         if (!released) browserMusicPlay(track?.name)
     }
 
+    override fun setVolumes(music: Float, effects: Float) {
+        if (!released) browserAudioSetVolumes(music.toDouble(), effects.toDouble())
+    }
+
     override fun release() {
         if (released) return
         released = true
@@ -203,6 +207,10 @@ private fun browserMusicLoad(name: String, base64: String, loopStart: Double, lo
 
 private fun browserMusicPlay(name: String?) {
     js("globalThis.ironroostPortal?.musicPlay(name)")
+}
+
+private fun browserAudioSetVolumes(music: Double, effects: Double) {
+    js("globalThis.ironroostPortal?.audioSetVolumes(music, effects)")
 }
 
 // Kotlin/Wasm js() interop returns a JS number, so the epoch arrives as a Double.

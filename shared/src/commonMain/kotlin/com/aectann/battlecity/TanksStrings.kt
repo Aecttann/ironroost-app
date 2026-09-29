@@ -85,6 +85,8 @@ import battlecity.shared.generated.resources.tanks_score
 import battlecity.shared.generated.resources.tanks_select_stage
 import battlecity.shared.generated.resources.tanks_select_stage_title
 import battlecity.shared.generated.resources.tanks_sound
+import battlecity.shared.generated.resources.settings_music
+import battlecity.shared.generated.resources.settings_effects
 import battlecity.shared.generated.resources.tanks_stage
 import battlecity.shared.generated.resources.tanks_start
 import battlecity.shared.generated.resources.tanks_summary_lives_left
@@ -207,6 +209,8 @@ object TanksStrings {
     val enemyPower: StringResource = Res.string.tanks_enemy_power
     val enemyArmor: StringResource = Res.string.tanks_enemy_armor
     val sound: StringResource = Res.string.tanks_sound
+    val settingsMusic: StringResource = Res.string.settings_music
+    val settingsEffects: StringResource = Res.string.settings_effects
     val close: StringResource = Res.string.tanks_close
     val controlsHint: StringResource = Res.string.tanks_controls_hint
 

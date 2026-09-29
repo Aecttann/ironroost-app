@@ -8,7 +8,7 @@ import com.aectann.battlecity.engine.BattleCityInputs
 import com.aectann.battlecity.engine.BattleCityLevelData
 import com.aectann.battlecity.engine.BattleCityMaxStage
 import com.aectann.battlecity.engine.BattleCityRenderState
-import com.aectann.battlecity.engine.BattleCitySoundEvent
+import com.aectann.battlecity.engine.BattleCityStep
 import com.aectann.battlecity.engine.BattleCityStageInfo
 import com.aectann.battlecity.engine.BattleCityStatus
 import com.aectann.battlecity.engine.TanksAnalytics
@@ -425,9 +425,10 @@ class TanksViewModel(
     // -------------------------------------------------------------------- ticking
 
     /** Advances the simulation. Returns the sounds the caller should play for this frame. */
-    fun advance(deltaSeconds: Float, inputs: BattleCityInputs): List<BattleCitySoundEvent> {
-        if (_session.value.phase != TanksPhase.Playing) return emptyList()
-        val current = engine ?: return emptyList()
+    /** One frame of the run: its sounds and its effects, or null when no run is being played. */
+    fun advance(deltaSeconds: Float, inputs: BattleCityInputs): BattleCityStep? {
+        if (_session.value.phase != TanksPhase.Playing) return null
+        val current = engine ?: return null
 
         val step = current.step(deltaSeconds, inputs)
         _render.value = step.state
@@ -439,7 +440,7 @@ class TanksViewModel(
             // the board still until chooseUpgrade sends the next one in.
             BattleCityStatus.Running -> if (step.state.waveCleared) onWaveCleared(step.state)
         }
-        return step.events
+        return step
     }
 
     private fun onWaveCleared(state: BattleCityRenderState) {

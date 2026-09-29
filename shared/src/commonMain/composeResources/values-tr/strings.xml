@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">Güçlü</string>
     <string name="tanks_enemy_armor">Zırhlı</string>
     <string name="tanks_sound">Ses</string>
+    <string name="settings_music">Müzik</string>
+    <string name="settings_effects">Efektler</string>
     <string name="tanks_close">Kapat</string>
     <string name="tanks_controls_hint">Dokunmatik kontroller veya WASD / ok tuşları • Boşluk: ateş • P: duraklat</string>
     <string name="menu_play">Oyna</string>

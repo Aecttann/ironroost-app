@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">强力</string>
     <string name="tanks_enemy_armor">装甲</string>
     <string name="tanks_sound">声音</string>
+    <string name="settings_music">音乐</string>
+    <string name="settings_effects">音效</string>
     <string name="tanks_close">关闭</string>
     <string name="tanks_controls_hint">触控或 WASD / 方向键 • 空格：开火 • P：暂停</string>
     <string name="menu_play">开始游戏</string>

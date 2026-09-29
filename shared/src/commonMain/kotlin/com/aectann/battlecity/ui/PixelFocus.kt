@@ -44,6 +44,8 @@ internal fun Modifier.pixelMenuKeys(letters: Boolean = true): Modifier = compose
             Key.D -> FocusDirection.Right.takeIf { letters }
             else -> null
         } ?: return@onPreviewKeyEvent false
+        val horizontal = direction == FocusDirection.Left || direction == FocusDirection.Right
+        if (horizontal && inputMode.horizontalKeysTaken) return@onPreviewKeyEvent false
         if (event.type == KeyEventType.KeyDown) {
             if (inputMode.keyboard) focusManager.moveFocus(direction) else inputMode.keyboard = true
         }

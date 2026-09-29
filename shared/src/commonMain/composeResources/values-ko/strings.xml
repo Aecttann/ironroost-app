@@ -30,6 +30,8 @@
     <string name="tanks_enemy_power">파워</string>
     <string name="tanks_enemy_armor">장갑</string>
     <string name="tanks_sound">소리</string>
+    <string name="settings_music">음악</string>
+    <string name="settings_effects">효과음</string>
     <string name="tanks_close">닫기</string>
     <string name="tanks_controls_hint">터치 조작 또는 WASD / 방향키 • 스페이스: 발사 • P: 일시정지</string>
     <string name="menu_play">플레이</string>
