@@ -173,7 +173,9 @@ class PackedResourcesTest {
      * Actual difficulty needs playtesting; what this catches is the pathological case, where a
      * tuning change lets the wave take the base before a player could plausibly react. It once
      * fell in eight seconds because every tank drilled every wall and sniped the base across the
-     * whole board.
+     * whole board. Stage one is also where a first visit lands, controls still being learned, so
+     * its centre lane is capped with steel and brick, fewer of its tanks go for the base
+     * (baseSeekerShare), and the floor is sixteen seconds, not eight.
      */
     @Test
     fun stageOneGivesThePlayerTimeToReact() {
@@ -190,7 +192,7 @@ class PackedResourcesTest {
             elapsed
         }
         assertTrue(
-            fastest >= 8f,
+            fastest >= 16f,
             "an idle player lost the base after only %.1fs; the wave is too base-focused".format(fastest)
         )
     }

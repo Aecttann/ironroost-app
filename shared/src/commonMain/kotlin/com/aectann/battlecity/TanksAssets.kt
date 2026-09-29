@@ -123,15 +123,15 @@ class TanksAssets private constructor(
 
         /** Exposed so a test can assert every declared sprite is actually packed. */
         fun spritePaths(): Map<String, String> = buildMap {
-            put(KeyBrick, "$GraphicsRoot/tiles/brick_damage_0.png")
+            put(KeyBrick, "$GraphicsRoot/tiles/brick.png")
             put("tile_steel", "$GraphicsRoot/tiles/steel.png")
             put("tile_water_0", "$GraphicsRoot/tiles/water_0.png")
             put("tile_water_1", "$GraphicsRoot/tiles/water_1.png")
             put("tile_ice", "$GraphicsRoot/tiles/ice.png")
             put("tile_forest_0", "$GraphicsRoot/tiles/forest_0.png")
             put("tile_forest_1", "$GraphicsRoot/tiles/forest_1.png")
-            put("base_alive", "$GraphicsRoot/ui/base_eagle_alive.png")
-            put("base_destroyed", "$GraphicsRoot/ui/base_eagle_destroyed.png")
+            put("base_alive", "$GraphicsRoot/ui/base_nest_alive.png")
+            put("base_destroyed", "$GraphicsRoot/ui/base_nest_destroyed.png")
             put("ui_life", "$GraphicsRoot/ui/life_tank_icon.png")
             put("ui_flag", "$GraphicsRoot/ui/flag_stage.png")
             put("ui_logo", "$GraphicsRoot/ui/logo.png")
@@ -145,13 +145,13 @@ class TanksAssets private constructor(
             }
 
             put("powerup_star", "$GraphicsRoot/powerups/star.png")
-            put("powerup_gun", "$GraphicsRoot/powerups/gun_1990_variant.png")
+            put("powerup_gun", "$GraphicsRoot/powerups/gun.png")
             put("powerup_helmet", "$GraphicsRoot/powerups/helmet.png")
             put("powerup_timer", "$GraphicsRoot/powerups/timer.png")
             put("powerup_shovel", "$GraphicsRoot/powerups/shovel.png")
             put("powerup_grenade", "$GraphicsRoot/powerups/grenade.png")
             put("powerup_tank_life", "$GraphicsRoot/powerups/tank_life.png")
-            put("powerup_boat", "$GraphicsRoot/powerups/boat_1990_variant.png")
+            put("powerup_boat", "$GraphicsRoot/powerups/boat.png")
 
             BattleCityDirection.entries.forEach { direction ->
                 val suffix = direction.assetSuffix

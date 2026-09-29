@@ -12,7 +12,7 @@ assets/graphics/tiles/       brick, steel, water, forest, ice (16x16)
 assets/graphics/tanks/       player (green, 4 upgrade levels) and enemy tanks, 4 facings
 assets/graphics/effects/     bullets, explosion, spawn and shield animations
 assets/graphics/powerups/    the eight bonuses dropped by flashing enemies
-assets/graphics/ui/          base eagle, life icon, stage flag
+assets/graphics/ui/          base (iron egg in a steel nest), life icon, stage flag
 assets/graphics/spritesheets/ atlases of the same art, kept for editing convenience
 assets/audio/sfx/            shot, explosions, wall hits, bonus, extra life, game over
 assets/audio/music_loops/    stage start jingle, engine rumble loop

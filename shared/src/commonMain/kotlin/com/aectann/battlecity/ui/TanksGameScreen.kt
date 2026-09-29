@@ -643,7 +643,9 @@ internal fun TanksBoard(
 ) {
     val textMeasurer = rememberTextMeasurer()
     val popupStyle = LocalPixelType.current.label.shadowed()
-    Canvas(modifier = modifier.aspectRatio(1f).background(Color.Black)) {
+    // Its own layer: the board is the one thing redrawn every frame, and without a layer each
+    // redraw repainted everything around it too — the brick wall, the HUD, the menu's buttons.
+    Canvas(modifier = modifier.aspectRatio(1f).graphicsLayer().background(Color.Black)) {
         val snapshot = state.tiles
         val boardPx = size.minDimension
         val tileSize = boardPx / maxOf(snapshot.cols, snapshot.rows)

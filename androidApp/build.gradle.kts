@@ -94,6 +94,22 @@ android {
             )
             signingConfig = signingConfigs.findByName("release")
         }
+        // Release speed on a phone at your desk: shrunk and optimised like release, not debuggable
+        // (a debuggable Compose build runs several times slower and says nothing about frame rate),
+        // but on the debug key and the test ad units, so it installs over a debug build and never
+        // serves a live ad to the developer's own device. `gradlew :androidApp:installProfile`.
+        create("profile") {
+            initWith(getByName("debug"))
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {

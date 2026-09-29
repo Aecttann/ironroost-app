@@ -33,6 +33,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -95,9 +96,11 @@ fun MenuScreen(
         val logoMaxWidth = maxWidth * 0.8f
         val logoMaxHeight = maxHeight * 0.18f
 
+        // The buttons in a layer of their own, so the battle behind them does not repaint them.
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer()
                 .safeContentPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),

@@ -74,7 +74,9 @@ internal fun BrickWall(assets: TanksAssets?, fieldSide: Dp, modifier: Modifier =
         Box(modifier.background(MenuBackground))
         return
     }
-    Canvas(modifier) {
+    // A layer of its own: the wall never changes during a run, and without one it was redrawn,
+    // four hundred bricks at a time, every frame the board beside it moved.
+    Canvas(modifier.graphicsLayer()) {
         val sidePx = fieldSide.toPx()
         val tile = (sidePx / cells).coerceAtLeast(4f)
         val tileSize = IntSize(ceil(tile).toInt(), ceil(tile).toInt())
@@ -259,6 +261,10 @@ internal fun TanksPlayfield(
     val stageLabel = if (isEndless) stringResource(TanksStrings.wave, state.wave) else stringResource(TanksStrings.stage, stage)
     val density = LocalDensity.current
 
+    // The board is redrawn every frame; everything else on this screen changes a few times a run.
+    // Each block round it has its own layer (graphicsLayer) so that a frame repaints the board
+    // alone rather than the whole screen: on a low-end phone that was the difference between
+    // forty-odd frames a second and twenty.
     BoxWithConstraints(modifier) {
         val gap = 10.dp
         if (maxWidth > maxHeight) {
@@ -278,7 +284,7 @@ internal fun TanksPlayfield(
                 // The flanks are exactly as tall as the framed board: the three read as one
                 // cabinet front, not as cards floating in the corners.
                 PixelPanel(
-                    modifier = Modifier.width(panelWidth).height(framed),
+                    modifier = Modifier.width(panelWidth).height(framed).graphicsLayer(),
                     contentPadding = PaddingValues(12.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
@@ -299,7 +305,7 @@ internal fun TanksPlayfield(
                 }
                 FramedBoard(side, state, assets, animationFrame, fx, curtain, lesson)
                 PixelPanel(
-                    modifier = Modifier.width(panelWidth).height(framed),
+                    modifier = Modifier.width(panelWidth).height(framed).graphicsLayer(),
                     contentPadding = PaddingValues(12.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
@@ -337,7 +343,7 @@ internal fun TanksPlayfield(
                     isRunning = isRunning,
                     keyboardHints = keyboardHints,
                     onStartPause = onStartPause,
-                    modifier = Modifier.fillMaxWidth().height(stripHeight)
+                    modifier = Modifier.fillMaxWidth().height(stripHeight).graphicsLayer()
                 )
                 // The board sits in the middle of whatever height is left, not up under the strip.
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -345,7 +351,7 @@ internal fun TanksPlayfield(
                 }
                 if (touchControls) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().height(controlsHeight),
+                        modifier = Modifier.fillMaxWidth().height(controlsHeight).graphicsLayer(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {

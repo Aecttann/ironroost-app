@@ -59,8 +59,18 @@ private const val MaxPlayerLives = 9
  */
 private const val FriendlyFireStunSeconds = 1.6f
 
-/** Share of each wave that actively drives for the base. */
+/** Share of a wave that actively drives for the base, at full pressure. */
 private const val BaseSeekerShare = 0.3f
+
+/**
+ * Share of each wave that actively drives for the base. It grows with the stage's difficulty:
+ * the opening stages, where a first visit lands with the controls still being learned, send one
+ * tank in eight for the base rather than one in three, so a new player has time to find out
+ * what the base is before it falls. From difficulty four on, and in endless from the first
+ * wave, it is the full share.
+ */
+internal fun baseSeekerShare(difficulty: Int, endless: Boolean): Float =
+    if (endless) BaseSeekerShare else (0.06f * (difficulty + 1)).coerceIn(0.12f, BaseSeekerShare)
 
 /** How single-mindedly a base seeker follows the shortest route. */
 private const val BaseSeekerFocus = 0.7f
@@ -687,7 +697,7 @@ class BattleCityEngine(
     }
 
     private fun enemyForType(type: String, x: Float, y: Float): Tank {
-        val seeker = random.nextFloat() < BaseSeekerShare
+        val seeker = random.nextFloat() < baseSeekerShare(difficulty, endless)
         return when (type) {
             "fast" -> Tank("", type, x, y, BattleCityDirection.Down, 1, 1, 3.1f, 6.4f, 200, isPlayer = false, seeksBase = seeker)
             "power" -> Tank("", type, x, y, BattleCityDirection.Down, 1, 1, 1.9f, 8.6f, 300, isPlayer = false, seeksBase = seeker)

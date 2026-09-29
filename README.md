@@ -23,6 +23,16 @@ The dependency direction is one way: `androidApp`, `webApp` and `iosApp` → `:s
 ./gradlew :androidApp:assembleDebug
 ```
 
+To judge frame rate on a phone, use the `profile` build type rather than debug: it is shrunk
+and optimised like release but signed with the debug key and wired to the test ad units, so it
+installs over a debug build and never serves a live ad to your own device. A debuggable Compose
+build runs several times slower and tells you nothing about speed.
+
+```bash
+./gradlew :androidApp:assembleProfile
+adb install -r androidApp/build/outputs/apk/profile/androidApp-profile.apk
+```
+
 iOS: open `iosApp/iosApp.xcodeproj` in Xcode and run. Set `TEAM_ID` in
 `iosApp/Configuration/Config.xcconfig` first.
 
