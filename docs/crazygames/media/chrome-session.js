@@ -27,7 +27,11 @@ const FORMATS = {
     portrait: { css: { width: 720, height: 1080 }, scale: 1.5 },
     // Not a listing format: the smallest phone the HUD has to read on, with a touchscreen, so
     // the game shows its on-screen stick and trigger. Only screenshots.js uses it.
-    phone: { css: { width: 360, height: 640 }, scale: 2, touch: true }
+    phone: { css: { width: 360, height: 640 }, scale: 2, touch: true },
+    // The same phone turned on its side: stick and trigger move into the board's flanks.
+    "phone-land": { css: { width: 640, height: 360 }, scale: 2, touch: true },
+    // Also screenshots only: a full-HD desktop window, the largest the HUD has to hold up at.
+    hd: { css: { width: 1920, height: 1080 }, scale: 1 }
 };
 
 const FPS = 60;
@@ -231,6 +235,17 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
         source: fs.readFileSync(path.join(__dirname, "virtual-clock.js"), "utf8")
     });
     await client.send("Page.navigate", { url: gameUrl });
+    // Let the first load finish before anything reloads it: a reload sent mid-navigation lands
+    // on a page that is being swapped out and fails with "not attached to an active page".
+    for (let attempt = 0; ; attempt++) {
+        if (attempt > 100) throw new Error("the game page never finished its first load");
+        try {
+            if (await evaluate("location.href.startsWith('http') && document.readyState === 'complete'", false)) break;
+        } catch (error) {
+            if (!/context was destroyed|Cannot find context|not attached/i.test(error.message)) throw error;
+        }
+        await sleep(200);
+    }
     return session;
 }
 

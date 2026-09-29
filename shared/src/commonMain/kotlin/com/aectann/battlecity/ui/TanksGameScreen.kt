@@ -402,55 +402,45 @@ fun TanksGameScreen(
                 .focusRequester(focusRequester)
                 .focusable()
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .safeContentPadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                TanksHud(
-                    state = renderState,
+            // The fortress wall the board is set into, on the board's own grid (see TanksPlayfield).
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                BrickWall(assets = assets, fieldSide = minOf(maxWidth, maxHeight), modifier = Modifier.fillMaxSize(), dim = 0.84f)
+            }
+
+            val loadedAssets = assets
+            val state = renderState
+            when {
+                session.phase == TanksPhase.Error -> TanksMessagePanel(
+                    title = stringResource(TanksStrings.errorMessage, session.errorMessage.orEmpty()),
+                    actionText = stringResource(TanksStrings.retry),
+                    onAction = { viewModel.retryLoad() }
+                )
+
+                loadedAssets == null || state == null -> TanksLoadingPanel()
+
+                else -> TanksPlayfield(
+                    modifier = Modifier.fillMaxSize().safeContentPadding().padding(10.dp),
+                    state = state,
+                    assets = loadedAssets,
+                    animationFrame = animationFrame,
                     stage = session.stage,
                     campaignScore = session.campaignScore,
                     isCoop = isCoop,
                     isEndless = session.isEndless,
-                    assets = assets
+                    activeDirection = heldInput.visibleDirection,
+                    isRunning = session.phase == TanksPhase.Playing,
+                    showStartButton = startButtonVisible(session.phase),
+                    // Re-read on every recomposition rather than remembered: the browser bridge
+                    // only learns the device is touch when a finger actually lands, and the
+                    // per-frame animation tick brings the answer in within a frame of that.
+                    touchControls = platform.usesTouchControls,
+                    keyboardHints = platform.hasPhysicalKeyboard,
+                    isFirePressed = heldInput.visibleFirePressed,
+                    onDirectionChanged = heldInput::setPointerDirection,
+                    onFirePressedChanged = heldInput::setPointerFire,
+                    // The pause button clicks for itself (PixelBlockButton).
+                    onStartPause = { viewModel.togglePause() }
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val loadedAssets = assets
-                when {
-                    session.phase == TanksPhase.Error -> TanksMessagePanel(
-                        title = stringResource(TanksStrings.errorMessage, session.errorMessage.orEmpty()),
-                        actionText = stringResource(TanksStrings.retry),
-                        onAction = { viewModel.retryLoad() }
-                    )
-
-                    loadedAssets == null || renderState == null -> TanksLoadingPanel()
-
-                    else -> TanksPlayArea(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        state = renderState!!,
-                        assets = loadedAssets,
-                        animationFrame = animationFrame,
-                        activeDirection = heldInput.visibleDirection,
-                        isRunning = session.phase == TanksPhase.Playing,
-                        showStartButton = startButtonVisible(session.phase),
-                        // Re-read on every recomposition rather than remembered: the browser bridge
-                        // only learns the device is touch when a finger actually lands, and the
-                        // per-frame animation tick brings the answer in within a frame of that.
-                        touchControls = platform.usesTouchControls,
-                        isFirePressed = heldInput.visibleFirePressed,
-                        onDirectionChanged = heldInput::setPointerDirection,
-                        onFirePressedChanged = heldInput::setPointerFire,
-                        onStartPause = {
-                            sound.play(TanksClip.MenuSelect)
-                            viewModel.togglePause()
-                        }
-                    )
-                }
             }
 
             when (session.phase) {
@@ -548,289 +538,6 @@ fun TanksGameScreen(
                     color = Color.White,
                     textAlign = TextAlign.Center
                 )
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------- HUD
-
-@Composable
-private fun TanksHud(
-    state: BattleCityRenderState?,
-    stage: Int,
-    campaignScore: Int,
-    isCoop: Boolean,
-    isEndless: Boolean,
-    assets: TanksAssets?
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Solo shows one strip of lives. In co-op a combined count hides the thing that
-            // actually matters to two people sharing a keyboard — whose lives are running out —
-            // so each seat gets its own strip in its own tank colour.
-            if (isCoop) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    state?.players?.forEachIndexed { index, player ->
-                        if (index > 0) Spacer(modifier = Modifier.width(10.dp))
-                        SeatLives(
-                            seat = player.index,
-                            lives = player.lives,
-                            icon = assets?.lifeIcon(),
-                            colour = if (player.index == 0) PlayerGreen else PlayerYellow
-                        )
-                    }
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconStrip(assets?.lifeIcon(), state?.lives ?: 0, PlayerGreen)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "x${state?.lives ?: 0}",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SpriteIcon(assets?.flagIcon(), 18.dp, AccentGold)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    // Endless has no stage number to show; the wave is the thing that climbs.
-                    text = if (isEndless) {
-                        stringResource(TanksStrings.wave, state?.wave ?: 1)
-                    } else {
-                        stringResource(TanksStrings.stage, stage)
-                    },
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Text(
-                text = stringResource(
-                    TanksStrings.score,
-                    campaignScore + (state?.stageScore ?: 0)
-                ),
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconStrip(assets?.enemyQueueIcon(), state?.enemiesPending ?: 0, MutedText, maxIcons = 10)
-            Text(
-                text = stringResource(
-                    TanksStrings.enemies,
-                    state?.destroyedEnemies ?: 0,
-                    state?.totalEnemies ?: 0
-                ),
-                color = Color.White,
-                fontSize = 12.sp
-            )
-            Text(
-                text = stringResource(TanksStrings.tankLevel, state?.playerLevel ?: 1),
-                color = PlayerGreen,
-                fontSize = 12.sp
-            )
-        }
-
-        // The build is only worth a line once there is one, so a campaign HUD never shows it.
-        val taken = state?.loadout?.taken().orEmpty()
-        if (taken.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(4.dp))
-            // Resolved through `map`, which is inline and so may call stringResource; the
-            // joining happens afterwards on plain strings.
-            val labels = taken.map { (upgrade, level) ->
-                stringResource(TanksStrings.upgradeName(upgrade)) + " " + level
-            }
-            Text(
-                text = labels.joinToString("  ·  "),
-                color = AccentGold,
-                fontSize = 11.sp
-            )
-        }
-    }
-}
-
-/** One seat's lives, labelled so two players can tell the strips apart at a glance. */
-@Composable
-private fun SeatLives(seat: Int, lives: Int, icon: ImageBitmap?, colour: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = stringResource(TanksStrings.playerSeat, seat + 1),
-            color = colour,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        IconStrip(icon, lives, colour, maxIcons = 3)
-        Spacer(modifier = Modifier.width(3.dp))
-        Text(text = "x$lives", color = Color.White, fontSize = 12.sp)
-    }
-}
-
-
-@Composable
-private fun IconStrip(image: ImageBitmap?, count: Int, tint: Color, maxIcons: Int = 5) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        repeat(count.coerceAtMost(maxIcons)) {
-            SpriteIcon(image, 14.dp, tint)
-            Spacer(modifier = Modifier.width(2.dp))
-        }
-        if (count > maxIcons) {
-            Text(text = "+${count - maxIcons}", color = tint, fontSize = 11.sp)
-        }
-    }
-}
-
-@Composable
-private fun SpriteIcon(image: ImageBitmap?, size: Dp, tint: Color) {
-    if (image == null) {
-        Box(modifier = Modifier.size(size).background(tint))
-        return
-    }
-    Canvas(modifier = Modifier.size(size)) {
-        drawImage(
-            image = image,
-            dstOffset = IntOffset.Zero,
-            dstSize = IntSize(this.size.width.roundToInt(), this.size.height.roundToInt()),
-            filterQuality = FilterQuality.None
-        )
-    }
-}
-
-// --------------------------------------------------------------------- play area
-
-/**
- * Landscape puts steering under the left thumb and the trigger under the right, with the board
- * between them. Portrait stacks the board over a control strip that keeps the same handedness.
- */
-@Composable
-private fun TanksPlayArea(
-    modifier: Modifier,
-    state: BattleCityRenderState,
-    assets: TanksAssets,
-    animationFrame: Int,
-    activeDirection: BattleCityDirection?,
-    isRunning: Boolean,
-    showStartButton: Boolean,
-    /** Draw the on-screen stick and trigger. False on a device that steers with keys. */
-    touchControls: Boolean,
-    isFirePressed: Boolean,
-    onDirectionChanged: (BattleCityDirection?) -> Unit,
-    onFirePressedChanged: (Boolean) -> Unit,
-    onStartPause: () -> Unit
-) {
-    BoxWithConstraints(modifier = modifier) {
-        val isLandscape = maxWidth > maxHeight
-        val spacing = 12.dp
-
-        if (isLandscape) {
-            // Without the stick and trigger the flanks only have to hold a pause button, so the
-            // board takes the width they were using — which is most of the point of hiding them.
-            val sideWidth = when {
-                !touchControls -> 96.dp
-                maxWidth < 700.dp -> 150.dp
-                else -> 176.dp
-            }
-            val boardSize = minOf(
-                maxHeight,
-                (maxWidth - sideWidth * 2 - spacing * 2).coerceAtLeast(160.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (touchControls) {
-                    DirectionJoystick(
-                        activeDirection = activeDirection,
-                        modifier = Modifier.size(sideWidth),
-                        onDirectionChanged = onDirectionChanged
-                    )
-                } else {
-                    // Balances the pause column opposite. Dropping the stick without this leaves
-                    // the board sitting off-centre, which reads as a layout bug rather than as
-                    // one fewer control.
-                    Spacer(modifier = Modifier.width(sideWidth))
-                }
-                TanksBoard(
-                    modifier = Modifier.size(boardSize),
-                    state = state,
-                    assets = assets,
-                    animationFrame = animationFrame
-                )
-                TanksActionPanel(
-                    modifier = Modifier
-                        .width(sideWidth)
-                        .height(if (touchControls) sideWidth + 40.dp else 72.dp),
-                    isRunning = isRunning,
-                    showStartButton = showStartButton,
-                    showFire = touchControls,
-                    isFirePressed = isFirePressed,
-                    onFirePressedChanged = onFirePressedChanged,
-                    onStartPause = onStartPause
-                )
-            }
-        } else {
-            val controlsHeight = when {
-                !touchControls -> 64.dp
-                maxHeight < 580.dp -> 170.dp
-                else -> 192.dp
-            }
-            val joystickSize = if (maxHeight < 580.dp) 140.dp else 152.dp
-            val boardSize = minOf(maxWidth, (maxHeight - controlsHeight - spacing).coerceAtLeast(160.dp))
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically)
-            ) {
-                TanksBoard(
-                    modifier = Modifier.size(boardSize),
-                    state = state,
-                    assets = assets,
-                    animationFrame = animationFrame
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(controlsHeight).padding(8.dp),
-                    horizontalArrangement = if (touchControls) {
-                        Arrangement.SpaceBetween
-                    } else {
-                        // One child left, so it centres instead of hugging the left edge.
-                        Arrangement.Center
-                    },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (touchControls) {
-                        DirectionJoystick(
-                            activeDirection = activeDirection,
-                            modifier = Modifier.size(joystickSize),
-                            onDirectionChanged = onDirectionChanged
-                        )
-                    }
-                    TanksActionPanel(
-                        modifier = Modifier.width(150.dp).height(controlsHeight - 16.dp),
-                        isRunning = isRunning,
-                        showStartButton = showStartButton,
-                        showFire = touchControls,
-                        isFirePressed = isFirePressed,
-                        onFirePressedChanged = onFirePressedChanged,
-                        onStartPause = onStartPause
-                    )
-                }
             }
         }
     }
@@ -1407,214 +1114,6 @@ private fun TanksMessagePanel(title: String, actionText: String, onAction: () ->
             PixelButton(actionText, onAction, focusRequester = action)
         }
     }
-}
-
-// ----------------------------------------------------------------------- controls
-
-@Composable
-private fun DirectionJoystick(
-    activeDirection: BattleCityDirection?,
-    modifier: Modifier,
-    onDirectionChanged: (BattleCityDirection?) -> Unit
-) {
-    GlassPanel(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    // Reacts on touch down, not only after the drag slop, so a tap steers too.
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        onDirectionChanged(directionFromJoystickPosition(down.position, size))
-                        down.consume()
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!change.pressed) {
-                                change.consume()
-                                break
-                            }
-                            onDirectionChanged(directionFromJoystickPosition(change.position, size))
-                            change.consume()
-                        }
-                        onDirectionChanged(null)
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(10.dp)
-                    .background(Color.White.copy(alpha = 0.12f), CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.30f), CircleShape)
-            )
-            Box(
-                modifier = Modifier
-                    .align(joystickKnobAlignment(activeDirection))
-                    .padding(22.dp)
-                    .size(40.dp)
-                    .background(Color.White.copy(alpha = 0.36f), CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.50f), CircleShape)
-            )
-        }
-    }
-}
-
-/**
- * Pause and fire.
- *
- * Fire belongs to touch and disappears with the rest of the pad. Pause does not: it is the only
- * visible way to stop a run on any device, and the `P` shortcut is only ever spelled out on the
- * stage card, which is gone a second and a half in.
- */
-@Composable
-private fun TanksActionPanel(
-    modifier: Modifier,
-    isRunning: Boolean,
-    showStartButton: Boolean,
-    showFire: Boolean,
-    isFirePressed: Boolean,
-    onFirePressedChanged: (Boolean) -> Unit,
-    onStartPause: () -> Unit
-) {
-    // With neither button there is nothing to frame, and an empty glass panel floating beside
-    // the board looks like a rendering fault.
-    if (!showStartButton && !showFire) return
-
-    GlassPanel(modifier = modifier) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val compact = maxHeight < 160.dp
-            val fireSize = if (compact) 84.dp else 94.dp
-            val buttonGap = if (compact) 10.dp else 16.dp
-            val startButtonHeight = if (compact) 36.dp else 40.dp
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(buttonGap, Alignment.CenterVertically)
-            ) {
-                if (showStartButton) {
-                    ControlTapButton(
-                        text = if (isRunning) {
-                            stringResource(TanksStrings.pause)
-                        } else {
-                            stringResource(TanksStrings.start)
-                        },
-                        modifier = Modifier.size(94.dp, startButtonHeight),
-                        onClick = onStartPause
-                    )
-                }
-                if (showFire) {
-                    ControlHoldButton(
-                        text = stringResource(TanksStrings.fire),
-                        isActive = isFirePressed,
-                        modifier = Modifier.size(fireSize),
-                        shape = CircleShape,
-                        color = Color(0xFFD13D2F).copy(alpha = 0.82f),
-                        activeColor = Color(0xFFFF5A45).copy(alpha = 0.92f),
-                        onPressedChanged = onFirePressedChanged
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GlassPanel(modifier: Modifier, content: @Composable () -> Unit) {
-    Box(
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.28f), RoundedCornerShape(28.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(28.dp))
-            .padding(8.dp)
-    ) { content() }
-}
-
-@Composable
-private fun ControlHoldButton(
-    text: String,
-    isActive: Boolean,
-    modifier: Modifier,
-    shape: Shape = RoundedCornerShape(18.dp),
-    color: Color = Color.White.copy(alpha = 0.14f),
-    activeColor: Color = Color.White.copy(alpha = 0.34f),
-    onPressedChanged: (Boolean) -> Unit
-) {
-    Box(
-        modifier = modifier
-            .background(color = if (isActive) activeColor else color, shape = shape)
-            .border(1.dp, Color.White.copy(alpha = 0.28f), shape)
-            .pointerInput(text) {
-                detectTapGestures(
-                    onPress = {
-                        onPressedChanged(true)
-                        try {
-                            tryAwaitRelease()
-                        } finally {
-                            onPressedChanged(false)
-                        }
-                    }
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelMedium
-        )
-    }
-}
-
-@Composable
-private fun ControlTapButton(
-    text: String,
-    modifier: Modifier,
-    shape: Shape = RoundedCornerShape(18.dp),
-    color: Color = Color.White.copy(alpha = 0.16f),
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .background(color, shape)
-            .border(1.dp, Color.White.copy(alpha = 0.30f), shape)
-            .pointerInput(text) { detectTapGestures(onTap = { onClick() }) },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelMedium
-        )
-    }
-}
-
-private fun directionFromJoystickPosition(position: Offset, size: IntSize): BattleCityDirection? {
-    val centerX = size.width / 2f
-    val centerY = size.height / 2f
-    val dx = position.x - centerX
-    val dy = position.y - centerY
-    val threshold = minOf(size.width, size.height) * 0.12f
-
-    if (abs(dx) < threshold && abs(dy) < threshold) return null
-
-    return if (abs(dx) > abs(dy)) {
-        if (dx > 0f) BattleCityDirection.Right else BattleCityDirection.Left
-    } else {
-        if (dy > 0f) BattleCityDirection.Down else BattleCityDirection.Up
-    }
-}
-
-private fun joystickKnobAlignment(direction: BattleCityDirection?): Alignment = when (direction) {
-    BattleCityDirection.Up -> Alignment.TopCenter
-    BattleCityDirection.Right -> Alignment.CenterEnd
-    BattleCityDirection.Down -> Alignment.BottomCenter
-    BattleCityDirection.Left -> Alignment.CenterStart
-    null -> Alignment.Center
 }
 
 // ------------------------------------------------------------------------ dialogs

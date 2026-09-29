@@ -79,6 +79,8 @@ internal enum class PixelMaterial(val face: Color, val light: Color, val dark: C
     Steel(SteelFace, SteelLight, SteelDark, Color.White),
     Gold(AccentGold, GoldLight, GoldDark, Ink),
     Panel(PanelFace, PanelLight, PanelDark, Color.White),
+    /** The trigger: the one control that must be found without looking. */
+    Alarm(Color(0xFFC8372A), Color(0xFFF07060), Color(0xFF6E1A12), Color.White),
     Disabled(Color(0xFF363C45), Color(0xFF434A54), Color(0xFF22262C), DisabledText)
 }
 
@@ -96,29 +98,34 @@ internal fun DrawScope.drawPixelBlock(
     lift: Int,
     outline: Color = Ink,
     faceTint: Float = 0f,
-    texture: Boolean = true
+    texture: Boolean = true,
+    /** Where the block goes, for drawing several into one canvas; the whole node by default. */
+    topLeft: Offset = Offset.Zero,
+    blockSize: Size = size
 ) {
     val u = pixelUnit()
-    val w = size.width
-    val h = size.height
-    drawRect(outline, Offset(u, 0f), Size(w - 2 * u, h))
-    drawRect(outline, Offset(0f, u), Size(w, h - 2 * u))
-    drawRect(material.dark, Offset(u, u), Size(w - 2 * u, h - 2 * u))
+    val x = topLeft.x
+    val y = topLeft.y
+    val w = blockSize.width
+    val h = blockSize.height
+    drawRect(outline, Offset(x + u, y), Size(w - 2 * u, h))
+    drawRect(outline, Offset(x, y + u), Size(w, h - 2 * u))
+    drawRect(material.dark, Offset(x + u, y + u), Size(w - 2 * u, h - 2 * u))
 
-    val top = u + (BlockDepth - lift) * u
+    val top = y + u + (BlockDepth - lift) * u
     val faceHeight = h - 2 * u - BlockDepth * u
     val face = if (faceTint > 0f) lerp(material.face, material.light, faceTint) else material.face
-    drawRect(face, Offset(u, top), Size(w - 2 * u, faceHeight))
+    drawRect(face, Offset(x + u, top), Size(w - 2 * u, faceHeight))
     if (texture) {
         when (material) {
-            PixelMaterial.Brick -> drawMortar(Offset(u, top), Size(w - 2 * u, faceHeight), u)
-            PixelMaterial.Steel -> drawRivets(Offset(u, top), Size(w - 2 * u, faceHeight), u)
+            PixelMaterial.Brick -> drawMortar(Offset(x + u, top), Size(w - 2 * u, faceHeight), u)
+            PixelMaterial.Steel -> drawRivets(Offset(x + u, top), Size(w - 2 * u, faceHeight), u)
             else -> Unit
         }
     }
-    drawRect(material.light, Offset(u, top), Size(w - 2 * u, u))
-    drawRect(material.light, Offset(u, top), Size(u, faceHeight))
-    drawRect(lerp(material.face, material.dark, 0.55f), Offset(w - 2 * u, top + u), Size(u, faceHeight - u))
+    drawRect(material.light, Offset(x + u, top), Size(w - 2 * u, u))
+    drawRect(material.light, Offset(x + u, top), Size(u, faceHeight))
+    drawRect(lerp(material.face, material.dark, 0.55f), Offset(x + w - 2 * u, top + u), Size(u, faceHeight - u))
 }
 
 /** Brick courses, staggered, faint enough that a label on top still reads. */

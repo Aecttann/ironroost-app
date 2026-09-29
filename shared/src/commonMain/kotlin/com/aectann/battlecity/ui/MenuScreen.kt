@@ -48,9 +48,7 @@ import com.aectann.battlecity.engine.BattleCityLevelData
 import com.aectann.battlecity.engine.BattleCityStatus
 import com.aectann.battlecity.engine.TanksAttractPilot
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.ceil
 import kotlin.math.floor
-import kotlin.math.roundToInt
 
 /**
  * The front door, built like an arcade cabinet's attract screen: a battle already going on behind
@@ -248,35 +246,7 @@ private fun MenuLogo(logo: ImageBitmap?, maxWidth: Dp, maxHeight: Dp) {
 private fun MenuBackdrop(assets: TanksAssets?, modifier: Modifier) {
     BoxWithConstraints(modifier) {
         val side = minOf(maxWidth, maxHeight)
-        val brick = assets?.brick()
-        if (brick != null) {
-            Canvas(Modifier.fillMaxSize()) {
-                val sidePx = side.toPx()
-                val tile = sidePx / MenuFieldCells
-                val tileSize = IntSize(ceil(tile).toInt(), ceil(tile).toInt())
-                // Start one tile before the edge on the board's own grid, so the wall's joints
-                // line up with the field's cells wherever the two meet.
-                val originX = (size.width - sidePx) / 2f
-                val originY = (size.height - sidePx) / 2f
-                val firstX = originX - ceil(originX / tile) * tile
-                val firstY = originY - ceil(originY / tile) * tile
-                var y = firstY
-                while (y < size.height) {
-                    var x = firstX
-                    while (x < size.width) {
-                        drawImage(
-                            image = brick,
-                            dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
-                            dstSize = tileSize,
-                            filterQuality = FilterQuality.None
-                        )
-                        x += tile
-                    }
-                    y += tile
-                }
-                drawRect(Color.Black.copy(alpha = 0.8f))
-            }
-        }
+        BrickWall(assets = assets, fieldSide = side, modifier = Modifier.fillMaxSize())
         AttractBattle(assets = assets, modifier = Modifier.align(Alignment.Center).size(side))
         // Dark enough that the buttons are plainly the foreground, light enough that the tanks
         // still read as moving at a glance.
@@ -284,7 +254,6 @@ private fun MenuBackdrop(assets: TanksAssets?, modifier: Modifier) {
     }
 }
 
-private const val MenuFieldCells = 13f
 
 /**
  * A battle nobody is playing: the menu's own map, both seats flown by [TanksAttractPilot], run

@@ -85,6 +85,8 @@ node docs/crazygames/media/screenshots.js compare before phase-1
 Shots land in `docs/quality/screens/<label>/` and are committed; `compare` writes labelled pairs to
 `docs/quality/screens/<before>-vs-<after>/` (ignored by git, rebuilt on demand) and needs `ffmpeg`.
 `--formats` and `--views` take comma-separated subsets. Every format starts on a fresh profile.
+Besides the three default formats there are `hd` (a 1920×1080 desktop window) and `phone-land`
+(the phone on its side, touch), for checking the game screen at its extremes.
 
 `tour <label>` visits the screens off the menu — daily reward, collection, records and the nickname
 dialog, settings and the reset question, about, the stage list from the pause menu — by keyboard:
