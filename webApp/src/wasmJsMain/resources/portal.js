@@ -23,11 +23,23 @@
             voices: new Set(),
             engine: null,
             context: null,
-            effects: null
+            effects: null,
+            music: {
+                encoded: new Map(),
+                buffers: new Map(),
+                loops: new Map(),
+                wanted: null,
+                playing: null,
+                source: null,
+                gain: null
+            }
         }
     };
 
     const EffectsVolume = 0.7;
+    // The tracks are levelled to about -18 LUFS; this sits them under the effects rather than
+    // across them.
+    const MusicVolume = 0.5;
 
     const sdk = () => window.CrazyGames?.SDK;
 
@@ -87,6 +99,7 @@
     }
 
     function reconcileAudio() {
+        reconcileMusic();
         const engine = state.audio.engine;
         if (!engine) return;
         // The game asks every frame while a tank moves. Only a change reaches the element: a
@@ -115,12 +128,17 @@
                 const effects = context.createGain();
                 effects.gain.value = EffectsVolume;
                 effects.connect(context.destination);
+                const music = context.createGain();
+                music.gain.value = 0;
+                music.connect(context.destination);
                 state.audio.context = context;
                 state.audio.effects = effects;
+                state.audio.music.gain = music;
             } catch (_) {
                 return;
             }
             state.audio.encoded.forEach((base64, name) => decodeClip(name, base64));
+            state.audio.music.encoded.forEach((base64, name) => decodeMusic(name, base64));
         }
         if (state.audio.context.state !== "running") {
             // Older WebKit's resume() returns nothing rather than a promise.
@@ -146,6 +164,75 @@
         } catch (_) {
             // Same: an undecodable clip keeps playing through the element.
         }
+    }
+
+    // ------------------------------------------------------------------- music
+    //
+    // One looping track at a time, through Web Audio only: an <audio loop> element stops for a
+    // beat at every seam, and music is the one sound where that is heard. A browser without Web
+    // Audio simply has no music; the effects still have their element fallback.
+    //
+    // Nothing plays before the first touch, click or key — the browser would not allow it — and
+    // the music's gain follows audioCanPlay(), so the SDK's mute, a hidden tab and the game's own
+    // sound switch all silence it the moment they change.
+
+    function base64Bytes(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+
+    function decodeMusic(name, base64) {
+        const context = state.audio.context;
+        if (!context) return;
+        try {
+            context.decodeAudioData(base64Bytes(base64).buffer).then(
+                buffer => {
+                    state.audio.music.buffers.set(name, buffer);
+                    reconcileMusic();
+                },
+                () => { /* Undecodable: the game plays on without music. */ }
+            );
+        } catch (_) {
+            // Same.
+        }
+    }
+
+    function stopMusicSource() {
+        const music = state.audio.music;
+        if (music.source) {
+            try { music.source.stop(); } catch (_) { /* Already stopped. */ }
+            music.source.disconnect();
+        }
+        music.source = null;
+        music.playing = null;
+    }
+
+    function reconcileMusic() {
+        const music = state.audio.music;
+        const context = state.audio.context;
+        if (music.gain) music.gain.gain.value = audioCanPlay() ? MusicVolume : 0;
+        if (!context || music.playing === music.wanted) return;
+        stopMusicSource();
+        const buffer = music.wanted && music.buffers.get(music.wanted);
+        // No buffer yet: decodeMusic calls back in here when it has one.
+        if (!buffer) return;
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        // Each file is several copies of one seamless loop, and the loop runs from the second
+        // copy to the second-last, well clear of the padding MP3 leaves at either end. See
+        // TanksMusic in the game code.
+        const loop = music.loops.get(music.wanted);
+        if (loop && loop[1] > loop[0] && loop[1] <= buffer.duration) {
+            source.loopStart = loop[0];
+            source.loopEnd = loop[1];
+        }
+        source.connect(music.gain);
+        source.start();
+        music.source = source;
+        music.playing = music.wanted;
     }
 
     function silenceVoices() {
@@ -482,6 +569,26 @@
             state.audio.encoded.clear();
             state.audio.buffers.clear();
             state.audio.engineRequested = false;
+            const music = state.audio.music;
+            stopMusicSource();
+            music.wanted = null;
+            music.encoded.clear();
+            music.buffers.clear();
+            music.loops.clear();
+        },
+
+        /** A music track's MP3, and the window of it to loop, in seconds. */
+        musicLoad(name, base64, loopStart, loopEnd) {
+            const music = state.audio.music;
+            music.encoded.set(name, base64);
+            music.loops.set(name, [Number(loopStart), Number(loopEnd)]);
+            decodeMusic(name, base64);
+        },
+
+        /** Loops the named track, replacing any other; null or an empty name stops the music. */
+        musicPlay(name) {
+            state.audio.music.wanted = name || null;
+            reconcileMusic();
         },
 
         storageGet(key) {

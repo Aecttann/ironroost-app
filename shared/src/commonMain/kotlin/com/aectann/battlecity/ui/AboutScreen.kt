@@ -58,6 +58,12 @@ fun AboutScreen(
                     color = MutedText,
                     style = LocalPixelType.current.caption
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(TanksStrings.aboutCreditMusic),
+                    color = MutedText,
+                    style = LocalPixelType.current.caption
+                )
             }
         }
     }

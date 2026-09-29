@@ -98,6 +98,7 @@ import battlecity.shared.generated.resources.about_stages
 import battlecity.shared.generated.resources.about_version
 import battlecity.shared.generated.resources.about_credits_title
 import battlecity.shared.generated.resources.about_credit_font
+import battlecity.shared.generated.resources.about_credit_music
 import battlecity.shared.generated.resources.common_back
 import battlecity.shared.generated.resources.common_cancel
 import battlecity.shared.generated.resources.common_off
@@ -106,6 +107,7 @@ import battlecity.shared.generated.resources.common_reset
 import battlecity.shared.generated.resources.menu_about
 import battlecity.shared.generated.resources.menu_continue
 import battlecity.shared.generated.resources.menu_new_game
+import battlecity.shared.generated.resources.menu_play
 import battlecity.shared.generated.resources.menu_settings
 import battlecity.shared.generated.resources.settings_reset_done
 import battlecity.shared.generated.resources.settings_reset_progress
@@ -208,6 +210,7 @@ object TanksStrings {
     val close: StringResource = Res.string.tanks_close
     val controlsHint: StringResource = Res.string.tanks_controls_hint
 
+    val menuPlay: StringResource = Res.string.menu_play
     val menuNewGame: StringResource = Res.string.menu_new_game
     val menuContinue: StringResource = Res.string.menu_continue
     val menuSettings: StringResource = Res.string.menu_settings
@@ -222,6 +225,7 @@ object TanksStrings {
     val aboutVersion: StringResource = Res.string.about_version
     val aboutCreditsTitle: StringResource = Res.string.about_credits_title
     val aboutCreditFont: StringResource = Res.string.about_credit_font
+    val aboutCreditMusic: StringResource = Res.string.about_credit_music
     val commonBack: StringResource = Res.string.common_back
     val commonCancel: StringResource = Res.string.common_cancel
     val commonOn: StringResource = Res.string.common_on

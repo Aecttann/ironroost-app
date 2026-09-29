@@ -187,7 +187,12 @@ fun DailyRewardScreen(
 @Composable
 private fun WeekStrip(currentCycleDay: Int, claimable: TanksDailyAvailability) {
     val type = LocalPixelType.current
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Seven cells share whatever width there is, up to 44 dp each: at 360 dp the fixed cells ran
+    // off the screen and cut the seventh day in half.
+    Row(
+        modifier = Modifier.widthIn(max = 44.dp * TanksDailyRewards.CycleLength + 6.dp * (TanksDailyRewards.CycleLength - 1)).fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         (1..TanksDailyRewards.CycleLength).forEach { day ->
             val isToday = day == currentCycleDay
             val isPast = day < currentCycleDay
@@ -198,7 +203,7 @@ private fun WeekStrip(currentCycleDay: Int, claimable: TanksDailyAvailability) {
             }
             Column(
                 modifier = Modifier
-                    .width(44.dp)
+                    .weight(1f)
                     .pixelInset(accent = accent, fill = if (isPast) PanelFace else PanelDark)
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally

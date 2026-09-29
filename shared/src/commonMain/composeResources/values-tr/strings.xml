@@ -32,6 +32,7 @@
     <string name="tanks_sound">Ses</string>
     <string name="tanks_close">Kapat</string>
     <string name="tanks_controls_hint">Dokunmatik kontroller veya WASD / ok tuşları • Boşluk: ateş • P: duraklat</string>
+    <string name="menu_play">Oyna</string>
     <string name="menu_new_game">Yeni oyun</string>
     <string name="menu_continue">Devam et</string>
     <string name="menu_settings">Ayarlar</string>
@@ -46,6 +47,7 @@
     <string name="about_version">Sürüm %1$s</string>
     <string name="about_credits_title">Emeği geçenler</string>
     <string name="about_credit_font">Yazı tipi: Stefie Justprince imzalı Pixelify Sans, SIL Open Font License 1.1, Ironroost Pixel olarak uyarlandı.</string>
+    <string name="about_credit_music">Müzik: Juhani Junkala, “Retro Game Music Pack” (CC0).</string>
     <string name="common_back">Geri</string>
     <string name="common_cancel">Vazgeç</string>
     <string name="common_reset">Sıfırla</string>

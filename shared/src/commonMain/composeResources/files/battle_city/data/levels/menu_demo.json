@@ -1,0 +1,42 @@
+{
+  "id": "menu_demo",
+  "note": "The menu's attract-mode battlefield. Original layout made for this project: every tile the game has, mirrored left to right so the view reads as a composed picture behind the logo. Not part of the campaign.",
+  "gridSize": { "cols": 13, "rows": 13, "unitTilePx": 16 },
+  "spawnPoints": {
+    "enemy": [[0, 0], [6, 0], [12, 0]],
+    "player1": [4, 12],
+    "player2": [8, 12],
+    "base": [6, 12]
+  },
+  "tilesLegend": {
+    ".": "empty",
+    "B": "brick",
+    "S": "steel",
+    "F": "forest",
+    "W": "water",
+    "I": "ice",
+    "H": "base"
+  },
+  "grid": [
+    ".............",
+    ".BB.S...S.BB.",
+    ".BB.......BB.",
+    "....FF.FF....",
+    "WW..FF.FF..WW",
+    "....BBBBB....",
+    "..S.B...B.S..",
+    "....B.I.B....",
+    "FF.........FF",
+    "FF..BB.BB..FF",
+    "....B...B....",
+    ".....BBB.....",
+    ".....BHB....."
+  ],
+  "enemyGroups": [
+    { "enemy": "basic", "count": 10 },
+    { "enemy": "fast", "count": 5 },
+    { "enemy": "power", "count": 3 },
+    { "enemy": "armor", "count": 2 }
+  ],
+  "difficulty": 1
+}

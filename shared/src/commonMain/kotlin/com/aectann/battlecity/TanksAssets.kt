@@ -80,8 +80,8 @@ class TanksAssets private constructor(
     /** Any sprite by its internal key; the collection cards address art this way. */
     fun sprite(key: String): ImageBitmap? = images[key]
 
-    /** Player tank facing up, used as the menu emblem. */
-    fun menuTankSprite(): ImageBitmap? = images["player_green_level1_up"]
+    /** The IRONROOST logotype, drawn by docs/art/logo.js. Scale it by whole multiples only. */
+    fun logo(): ImageBitmap? = images["ui_logo"]
 
     /** Sprite used for the pending-enemy column next to the board. */
     fun enemyQueueIcon(): ImageBitmap? = images["enemy_basic_up"]
@@ -134,6 +134,7 @@ class TanksAssets private constructor(
             put("base_destroyed", "$GraphicsRoot/ui/base_eagle_destroyed.png")
             put("ui_life", "$GraphicsRoot/ui/life_tank_icon.png")
             put("ui_flag", "$GraphicsRoot/ui/flag_stage.png")
+            put("ui_logo", "$GraphicsRoot/ui/logo.png")
 
             repeat(4) { frame ->
                 put("explosion_$frame", "$GraphicsRoot/effects/explosion_$frame.png")

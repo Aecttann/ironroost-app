@@ -837,7 +837,7 @@ private fun TanksPlayArea(
 }
 
 @Composable
-private fun TanksBoard(
+internal fun TanksBoard(
     modifier: Modifier,
     state: BattleCityRenderState,
     assets: TanksAssets,
@@ -1704,7 +1704,7 @@ private fun StageTile(
         enabled = isAvailable,
         selected = isSelected,
         focusRequester = focusRequester,
-        contentPadding = PaddingValues(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 4.dp),
+        contentPadding = PaddingValues(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 4.dp),
         minHeight = 0.dp
     ) { color ->
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1730,7 +1730,9 @@ private fun StageTile(
 @Composable
 private fun DifficultyStars(difficulty: Int, lit: Color) {
     val filled = difficulty.coerceIn(1, BattleCityMaxDifficulty)
-    Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+    // Shoulder to shoulder: each star already carries a one-cell shadow column, and five of them
+    // have to fit a phone's stage tile.
+    Row {
         repeat(BattleCityMaxDifficulty) { index ->
             PixelIconImage(PixelIcons.Star, if (index < filled) lit else SteelDark, cell = 1.dp)
         }

@@ -32,6 +32,7 @@
     <string name="tanks_sound">ध्वनि</string>
     <string name="tanks_close">बंद करें</string>
     <string name="tanks_controls_hint">टच कंट्रोल या WASD / तीर • स्पेस: फ़ायर • P: पॉज़</string>
+    <string name="menu_play">खेलें</string>
     <string name="menu_new_game">नया खेल</string>
     <string name="menu_continue">जारी रखें</string>
     <string name="menu_settings">सेटिंग</string>
@@ -46,6 +47,7 @@
     <string name="about_version">संस्करण %1$s</string>
     <string name="about_credits_title">श्रेय</string>
     <string name="about_credit_font">फ़ॉन्ट: Stefie Justprince का Pixelify Sans, SIL Open Font License 1.1, Ironroost Pixel के रूप में संशोधित।</string>
+    <string name="about_credit_music">संगीत: Juhani Junkala, “Retro Game Music Pack” (CC0)।</string>
     <string name="common_back">वापस</string>
     <string name="common_cancel">रद्द करें</string>
     <string name="common_reset">रीसेट</string>

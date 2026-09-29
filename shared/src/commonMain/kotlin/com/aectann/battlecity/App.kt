@@ -16,6 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -151,12 +154,37 @@ fun App(
         val sound = remember { TanksSoundBank() }
         LaunchedEffect(platform) {
             sound.install(platform.createSoundPlayer(TanksResources.loadSoundBank(), session.soundEnabled))
+            // Music after the clips: a large file that the first click should not wait on.
+            TanksMusic.entries.forEach { track ->
+                runCatching { TanksResources.loadMusic(track) }.onSuccess { sound.loadMusic(track, it) }
+            }
         }
         DisposableEffect(sound) { onDispose { sound.release() } }
-        LaunchedEffect(session.soundEnabled, session.resurrectionInProgress, adsState.fullScreenShowing, adsState.privacyOptionsBusy) {
+
+        // The menu theme under every menu screen; the run has its own sound.
+        LaunchedEffect(destination) {
+            sound.setMusic(if (destination == Destination.Game) null else TanksMusic.Menu)
+        }
+
+        // Music keeps playing between screens, unlike a clip, so leaving the app has to stop it:
+        // a phone in a pocket should not go on playing the menu theme.
+        val lifecycleOwner = LocalLifecycleOwner.current
+        var inForeground by remember { mutableStateOf(true) }
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START -> inForeground = true
+                    Lifecycle.Event.ON_STOP -> inForeground = false
+                    else -> Unit
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+        LaunchedEffect(session.soundEnabled, session.resurrectionInProgress, adsState.fullScreenShowing, adsState.privacyOptionsBusy, inForeground) {
             sound.setEnabled(
                 session.soundEnabled && !session.resurrectionInProgress &&
-                    !adsState.fullScreenShowing && !adsState.privacyOptionsBusy
+                    !adsState.fullScreenShowing && !adsState.privacyOptionsBusy && inForeground
             )
         }
 
@@ -173,10 +201,8 @@ fun App(
                     when (destination) {
                         Destination.Menu -> MenuScreen(
                             highestCompletedStage = session.highestCompletedStage,
-                            titleSprite = assets?.menuTankSprite(),
+                            assets = assets,
                             dailyClaimable = meta.daily.availability == TanksDailyAvailability.Claimable,
-                            collectionUnlocked = meta.collectionUnlocked,
-                            collectionTotal = meta.collectionTotal,
                             bestEndlessWave = meta.stats.bestEndlessWave,
                             playerCount = seats,
                             coopAvailable = coopAvailable,

@@ -11,6 +11,19 @@ interface TanksSoundPlayer {
     /** Loops the engine rumble while the tank is being driven. */
     fun setEngineRunning(running: Boolean)
     fun release()
+
+    /**
+     * Hands over a music track's file, read by the caller once the clips are in. Nothing plays
+     * until [setMusic] asks for it. A platform without music support ignores both.
+     */
+    fun loadMusic(track: TanksMusic, bytes: ByteArray) = Unit
+
+    /**
+     * Loops [track] behind everything else, replacing whatever was playing; null stops the music.
+     * It obeys [setEnabled] like the clips do, and a track asked for before its file arrived
+     * starts as soon as [loadMusic] brings it.
+     */
+    fun setMusic(track: TanksMusic?) = Unit
 }
 
 object SilentSoundPlayer : TanksSoundPlayer {

@@ -32,6 +32,7 @@
     <string name="tanks_sound">소리</string>
     <string name="tanks_close">닫기</string>
     <string name="tanks_controls_hint">터치 조작 또는 WASD / 방향키 • 스페이스: 발사 • P: 일시정지</string>
+    <string name="menu_play">플레이</string>
     <string name="menu_new_game">새 게임</string>
     <string name="menu_continue">계속하기</string>
     <string name="menu_settings">설정</string>
@@ -46,6 +47,7 @@
     <string name="about_version">버전 %1$s</string>
     <string name="about_credits_title">크레딧</string>
     <string name="about_credit_font">글꼴: Stefie Justprince의 Pixelify Sans, SIL Open Font License 1.1, Ironroost Pixel로 수정.</string>
+    <string name="about_credit_music">음악: Juhani Junkala, 「Retro Game Music Pack」 (CC0).</string>
     <string name="common_back">뒤로</string>
     <string name="common_cancel">취소</string>
     <string name="common_reset">초기화</string>

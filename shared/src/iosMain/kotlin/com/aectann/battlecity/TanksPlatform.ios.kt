@@ -126,10 +126,45 @@ private class IosSoundPlayer(
         engineLoop = pools[TanksClip.EngineLoop]?.firstOrNull()?.also { it.numberOfLoops = -1 }
     }
 
+    // Music: one looping AVAudioPlayer per track, made when its file arrives. Only the wanted one
+    // plays, and only while sound is on.
+    private val musicPlayers = mutableMapOf<TanksMusic, AVAudioPlayer>()
+    private var musicWanted: TanksMusic? = null
+    private var musicPlaying: TanksMusic? = null
+
     override fun setEnabled(enabled: Boolean) {
         if (this.enabled == enabled) return
         this.enabled = enabled
         if (!enabled) engineLoop?.pause() else if (engineRunning) engineLoop?.play()
+        reconcileMusic()
+    }
+
+    override fun loadMusic(track: TanksMusic, bytes: ByteArray) {
+        if (released || track in musicPlayers) return
+        val data = bytes.toNSData() ?: return
+        makePlayer(data)?.let { player ->
+            player.numberOfLoops = -1
+            player.setVolume(MusicVolume)
+            player.prepareToPlay()
+            musicPlayers[track] = player
+            reconcileMusic()
+        }
+    }
+
+    override fun setMusic(track: TanksMusic?) {
+        musicWanted = track
+        reconcileMusic()
+    }
+
+    private fun reconcileMusic() {
+        val wanted = musicWanted.takeIf { enabled && !released }
+        if (wanted == musicPlaying) return
+        musicPlaying?.let { musicPlayers[it]?.stop() }
+        musicPlaying = null
+        val player = wanted?.let { musicPlayers[it] } ?: return
+        player.currentTime = 0.0
+        player.play()
+        musicPlaying = wanted
     }
 
     override fun play(clip: TanksClip) {
@@ -151,6 +186,8 @@ private class IosSoundPlayer(
         if (released) return
         released = true
         pools.values.flatten().forEach { it.stop() }
+        musicPlayers.values.forEach { it.stop() }
+        musicPlaying = null
         runCatching { AVAudioSession.sharedInstance().setActive(false, null) }
     }
 
@@ -161,6 +198,7 @@ private class IosSoundPlayer(
         const val VoicesPerClip = 3
         const val SfxVolume = 0.7f
         const val EngineVolume = 0.3f
+        const val MusicVolume = 0.5f
     }
 }
 

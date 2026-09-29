@@ -1,6 +1,7 @@
 package com.aectann.battlecity.ui
 
 import com.aectann.battlecity.TanksClip
+import com.aectann.battlecity.TanksMusic
 import com.aectann.battlecity.TanksSoundPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -15,11 +16,53 @@ class TanksSoundBankTest {
         var enabled: Boolean? = null
         val engineRuns = mutableListOf<Boolean>()
         var released = false
+        val loadedMusic = mutableListOf<TanksMusic>()
+        val musicAsked = mutableListOf<TanksMusic?>()
 
         override fun setEnabled(enabled: Boolean) { this.enabled = enabled }
         override fun play(clip: TanksClip) { played += clip }
         override fun setEngineRunning(running: Boolean) { engineRuns += running }
         override fun release() { released = true }
+        override fun loadMusic(track: TanksMusic, bytes: ByteArray) { loadedMusic += track }
+        override fun setMusic(track: TanksMusic?) { musicAsked += track }
+    }
+
+    @Test
+    fun `music asked for before the player lands starts on arrival, file and all`() {
+        val bank = TanksSoundBank()
+        bank.setMusic(TanksMusic.Menu)
+        bank.loadMusic(TanksMusic.Menu, byteArrayOf(1, 2, 3))
+
+        val player = RecordingPlayer()
+        bank.install(player)
+
+        assertEquals(listOf(TanksMusic.Menu), player.loadedMusic)
+        assertEquals(listOf<TanksMusic?>(TanksMusic.Menu), player.musicAsked)
+    }
+
+    @Test
+    fun `a file that arrives after the player reaches it too`() {
+        val bank = TanksSoundBank()
+        val player = RecordingPlayer()
+        bank.install(player)
+        bank.setMusic(TanksMusic.Menu)
+
+        bank.loadMusic(TanksMusic.Menu, byteArrayOf(1))
+
+        assertEquals(listOf(TanksMusic.Menu), player.loadedMusic)
+    }
+
+    @Test
+    fun `asking for the track already playing does not restart it`() {
+        val bank = TanksSoundBank()
+        val player = RecordingPlayer()
+        bank.install(player)
+
+        bank.setMusic(TanksMusic.Menu)
+        bank.setMusic(TanksMusic.Menu)
+        bank.setMusic(null)
+
+        assertEquals(listOf<TanksMusic?>(null, TanksMusic.Menu, null), player.musicAsked)
     }
 
     @Test

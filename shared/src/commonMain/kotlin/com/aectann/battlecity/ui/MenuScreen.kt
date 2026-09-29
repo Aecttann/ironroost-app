@@ -2,8 +2,6 @@ package com.aectann.battlecity.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,39 +14,60 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.aectann.battlecity.TanksAssets
+import com.aectann.battlecity.TanksResources
 import com.aectann.battlecity.TanksStrings
+import com.aectann.battlecity.engine.BattleCityEngine
+import com.aectann.battlecity.engine.BattleCityLevelData
+import com.aectann.battlecity.engine.BattleCityStatus
+import com.aectann.battlecity.engine.TanksAttractPilot
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * The app's front door. Deliberately small: the ways into the game plus settings and the
- * legal note. Stage picking lives in the pause menu, where the player already is.
+ * The front door, built like an arcade cabinet's attract screen: a battle already going on behind
+ * the glass, the logo over it, one big way in, and everything else a row of icons.
  *
- * The seat count is a toggle above the entries rather than a pair of duplicated buttons,
- * because it applies to both the campaign and endless — spelling out all four combinations
- * would double the menu to say very little.
+ * PLAY is the whole decision for a first visit — a new game. Once there is progress it carries on
+ * from the next stage instead, and a quieter New game sits below Endless for starting over. Stage
+ * picking lives in the pause menu, where the player already is.
+ *
+ * The seat choice appears only where there is a keyboard to seat a second player at; the second
+ * seat is keyboard-only (see App.kt's coop polling, which can bring it in later).
  */
 @Composable
 fun MenuScreen(
     highestCompletedStage: Int,
-    titleSprite: ImageBitmap?,
+    assets: TanksAssets?,
     dailyClaimable: Boolean,
-    collectionUnlocked: Int,
-    collectionTotal: Int,
     bestEndlessWave: Int,
     playerCount: Int,
     /** False on a device with no keys to drive the second seat with. */
@@ -63,260 +82,257 @@ fun MenuScreen(
     onSettings: () -> Unit,
     onAbout: () -> Unit
 ) {
-    // Enter on a fresh menu starts a new run.
-    val newGame = rememberInitialFocus()
+    // Enter on a fresh menu plays.
+    val play = rememberInitialFocus()
+    val type = LocalPixelType.current
+    val continuing = highestCompletedStage > 0
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MenuBackground)
-            .safeContentPadding()
             .pixelMenuKeys()
     ) {
-        // Three columns only on a screen that is wide and lies on its side. A tall 720 × 1080
-        // window clears the width too, but squeezed its title column until the name broke in two.
-        if (maxWidth >= 700.dp && maxWidth > maxHeight) {
-            Row(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(22.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MenuBrand(
-                    modifier = Modifier.weight(0.78f),
-                    titleSprite = titleSprite,
-                    highestCompletedStage = highestCompletedStage,
-                    spriteSize = 88
-                )
-                PrimaryMenuActions(
-                    modifier = Modifier.weight(1.15f),
-                    highestCompletedStage = highestCompletedStage,
-                    dailyClaimable = dailyClaimable,
-                    bestEndlessWave = bestEndlessWave,
-                    playerCount = playerCount,
-                    coopAvailable = coopAvailable,
-                    onPlayerCountChange = onPlayerCountChange,
-                    onNewGame = onNewGame,
-                    onContinue = onContinue,
-                    onEndless = onEndless,
-                    onDaily = onDaily,
-                    newGameFocus = newGame
-                )
-                SecondaryMenuActions(
-                    modifier = Modifier.weight(1f),
-                    collectionUnlocked = collectionUnlocked,
-                    collectionTotal = collectionTotal,
-                    onCollection = onCollection,
-                    onLeaderboard = onLeaderboard,
-                    onSettings = onSettings,
-                    onAbout = onAbout
+        MenuBackdrop(assets = assets, modifier = Modifier.fillMaxSize())
+        val logoMaxWidth = maxWidth * 0.8f
+        val logoMaxHeight = maxHeight * 0.18f
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeContentPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
+        ) {
+            MenuLogo(logo = assets?.logo(), maxWidth = logoMaxWidth, maxHeight = logoMaxHeight)
+            Spacer(Modifier.height(6.dp))
+
+            val column = Modifier.widthIn(max = 320.dp).fillMaxWidth()
+            if (coopAvailable) {
+                PixelSegmented(
+                    options = listOf(1, 2),
+                    selected = if (playerCount > 1) 2 else 1,
+                    label = { seats ->
+                        stringResource(if (seats == 1) TanksStrings.menuPlayersOne else TanksStrings.menuPlayersTwo)
+                    },
+                    onSelect = onPlayerCountChange,
+                    modifier = column
                 )
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                MenuBrand(
-                    titleSprite = titleSprite,
-                    highestCompletedStage = highestCompletedStage,
-                    spriteSize = 96
+
+            MenuEntry(
+                title = stringResource(TanksStrings.menuPlay),
+                subtitle = if (continuing) stringResource(TanksStrings.stage, highestCompletedStage + 1) else null,
+                onClick = if (continuing) onContinue else onNewGame,
+                modifier = column,
+                titleStyle = type.heading,
+                minHeight = 64.dp,
+                focusRequester = play
+            )
+            MenuEntry(
+                title = stringResource(TanksStrings.menuEndless),
+                subtitle = if (bestEndlessWave > 0) stringResource(TanksStrings.menuEndlessBest, bestEndlessWave) else null,
+                onClick = onEndless,
+                modifier = column
+            )
+            if (continuing) {
+                PixelButton(
+                    text = stringResource(TanksStrings.menuNewGame),
+                    onClick = onNewGame,
+                    modifier = column,
+                    material = PixelMaterial.Steel
                 )
-                Spacer(modifier = Modifier.height(26.dp))
-                PrimaryMenuActions(
-                    highestCompletedStage = highestCompletedStage,
-                    dailyClaimable = dailyClaimable,
-                    bestEndlessWave = bestEndlessWave,
-                    playerCount = playerCount,
-                    coopAvailable = coopAvailable,
-                    onPlayerCountChange = onPlayerCountChange,
-                    onNewGame = onNewGame,
-                    onContinue = onContinue,
-                    onEndless = onEndless,
-                    onDaily = onDaily,
-                    newGameFocus = newGame
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                SecondaryMenuActions(
-                    collectionUnlocked = collectionUnlocked,
-                    collectionTotal = collectionTotal,
-                    onCollection = onCollection,
-                    onLeaderboard = onLeaderboard,
-                    onSettings = onSettings,
-                    onAbout = onAbout
-                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                MenuIcon(PixelIcons.Daily, stringResource(TanksStrings.menuDaily), onDaily, PixelMaterial.Gold, badge = dailyClaimable)
+                MenuIcon(PixelIcons.Collection, stringResource(TanksStrings.menuCollection), onCollection)
+                MenuIcon(PixelIcons.Records, stringResource(TanksStrings.menuLeaderboard), onLeaderboard)
+                MenuIcon(PixelIcons.Settings, stringResource(TanksStrings.menuSettings), onSettings)
+                MenuIcon(PixelIcons.About, stringResource(TanksStrings.menuAbout), onAbout)
             }
         }
     }
 }
 
+/** A main entry: a label, and under it a quieter line saying where it leads. */
 @Composable
-private fun MenuBrand(
-    titleSprite: ImageBitmap?,
-    highestCompletedStage: Int,
-    spriteSize: Int,
-    modifier: Modifier = Modifier
+private fun MenuEntry(
+    title: String,
+    subtitle: String?,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    titleStyle: TextStyle = LocalPixelType.current.label,
+    minHeight: Dp = 48.dp,
+    focusRequester: FocusRequester? = null
 ) {
-    Column(
+    PixelBlockButton(
+        onClick = onClick,
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        if (titleSprite != null) {
-            Canvas(modifier = Modifier.size(spriteSize.dp)) {
-                val side = size.minDimension.roundToInt()
-                drawImage(
-                    image = titleSprite,
-                    dstOffset = IntOffset(
-                        ((size.width - side) / 2f).roundToInt(),
-                        ((size.height - side) / 2f).roundToInt()
-                    ),
-                    dstSize = IntSize(side, side),
-                    filterQuality = FilterQuality.None
-                )
+        focusRequester = focusRequester,
+        minHeight = minHeight
+    ) { color ->
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = title, color = color, style = titleStyle.shadowed())
+            if (subtitle != null) {
+                Text(text = subtitle, color = color.copy(alpha = 0.85f), style = LocalPixelType.current.caption.shadowed())
             }
-            Spacer(modifier = Modifier.height(12.dp))
         }
+    }
+}
+
+/**
+ * One of the secondary destinations: an icon button with its name under it, in a fixed-width
+ * cell so five of them share a phone's width.
+ */
+@Composable
+private fun MenuIcon(
+    icon: PixelIcon,
+    label: String,
+    onClick: () -> Unit,
+    material: PixelMaterial = PixelMaterial.Steel,
+    badge: Boolean = false
+) {
+    Column(modifier = Modifier.width(62.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        PixelIconButton(icon = icon, label = label, onClick = onClick, material = material, size = 52.dp, badge = badge)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            style = LocalPixelType.current.caption.shadowed(),
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
+    }
+}
+
+/**
+ * The logotype at a whole multiple of its own pixels — as large as fits the given box, never
+ * smaller than 1× — so its blocks stay square. Before the image has loaded, the name in type.
+ */
+@Composable
+private fun MenuLogo(logo: ImageBitmap?, maxWidth: Dp, maxHeight: Dp) {
+    if (logo == null) {
         PixelTitle(
             text = stringResource(TanksStrings.appName),
             color = Color.White,
             style = LocalPixelType.current.display
         )
-        if (highestCompletedStage > 0) {
-            Spacer(modifier = Modifier.height(18.dp))
-            Text(
-                text = stringResource(TanksStrings.highestCompletedStage, highestCompletedStage),
-                color = MutedText,
-                textAlign = TextAlign.Center
-            )
-        }
+        return
     }
-}
-
-@Composable
-private fun PrimaryMenuActions(
-    highestCompletedStage: Int,
-    dailyClaimable: Boolean,
-    bestEndlessWave: Int,
-    playerCount: Int,
-    /** False on a device with no keys to drive the second seat with. */
-    coopAvailable: Boolean,
-    onPlayerCountChange: (Int) -> Unit,
-    onNewGame: () -> Unit,
-    onContinue: () -> Unit,
-    onEndless: () -> Unit,
-    onDaily: () -> Unit,
-    newGameFocus: FocusRequester,
-    modifier: Modifier = Modifier
-) {
-    val buttonWidth = Modifier.fillMaxWidth().widthIn(min = 220.dp, max = 360.dp)
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
-    ) {
-        SeatSelector(buttonWidth, playerCount, coopAvailable, onPlayerCountChange)
-        Spacer(modifier = Modifier.height(2.dp))
-        PixelButton(
-            text = stringResource(TanksStrings.menuNewGame),
-            onClick = onNewGame,
-            modifier = buttonWidth,
-            focusRequester = newGameFocus
-        )
-        if (highestCompletedStage > 0) {
-            PixelButton(stringResource(TanksStrings.menuContinue), onContinue, buttonWidth)
-        }
-        PixelButton(
-            text = if (bestEndlessWave > 0) {
-                stringResource(TanksStrings.menuEndless) + "  ·  " +
-                    stringResource(TanksStrings.menuEndlessBest, bestEndlessWave)
-            } else {
-                stringResource(TanksStrings.menuEndless)
-            },
-            onClick = onEndless,
-            modifier = buttonWidth
-        )
-        // A reward waiting is a badge on the button, not a character in its label.
-        PixelButton(
-            text = stringResource(TanksStrings.menuDaily),
-            onClick = onDaily,
-            modifier = buttonWidth,
-            material = PixelMaterial.Gold,
-            badge = dailyClaimable
-        )
+    val density = LocalDensity.current
+    val scale = with(density) {
+        floor(minOf(maxWidth.toPx() / logo.width, maxHeight.toPx() / logo.height)).toInt().coerceIn(1, 4)
     }
-}
-
-@Composable
-private fun SecondaryMenuActions(
-    collectionUnlocked: Int,
-    collectionTotal: Int,
-    onCollection: () -> Unit,
-    onLeaderboard: () -> Unit,
-    onSettings: () -> Unit,
-    onAbout: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val buttonWidth = Modifier.fillMaxWidth().widthIn(min = 220.dp, max = 360.dp)
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
-    ) {
-        val steel = PixelMaterial.Steel
-        PixelButton(
-            text = stringResource(TanksStrings.menuCollection) + "  " +
-                stringResource(TanksStrings.collectionProgress, collectionUnlocked, collectionTotal),
-            onClick = onCollection,
-            modifier = buttonWidth,
-            material = steel
+    val width = with(density) { (logo.width * scale).toDp() }
+    val height = with(density) { (logo.height * scale).toDp() }
+    Canvas(Modifier.size(width, height)) {
+        drawImage(
+            image = logo,
+            dstOffset = IntOffset.Zero,
+            dstSize = IntSize(logo.width * scale, logo.height * scale),
+            filterQuality = FilterQuality.None
         )
-        PixelButton(stringResource(TanksStrings.menuLeaderboard), onLeaderboard, buttonWidth, material = steel)
-        PixelButton(stringResource(TanksStrings.menuSettings), onSettings, buttonWidth, material = steel)
-        PixelButton(stringResource(TanksStrings.menuAbout), onAbout, buttonWidth, material = steel)
     }
 }
 
 /**
- * One-or-two seats, as a pair of segments rather than a switch: the labels have to name what
- * each option is, and a bare toggle beside the word "players" reads as an on/off.
- *
- * Without a keyboard the second segment is shown disabled with the reason underneath rather than
- * hidden. Hiding it would read as the mode not existing, and on a phone that is the wrong thing
- * to learn — the same player on a desktop has it. Disabled-with-a-reason also fails safely if
- * the keyboard probe is wrong: the player can see what they are missing and why.
+ * Behind the menu: the live battlefield in the middle, as large as the screen's short side, and
+ * around it a wall of the game's own bricks laid on the same grid, so the field reads as set into
+ * the fortress rather than floating on a flat fill. Both are dimmed well back: this is scenery.
  */
 @Composable
-private fun SeatSelector(
-    modifier: Modifier,
-    playerCount: Int,
-    coopAvailable: Boolean,
-    onPlayerCountChange: (Int) -> Unit
-) {
-    Column(modifier = modifier) {
-        PixelSegmented(
-            options = listOf(1, 2),
-            selected = if (coopAvailable && playerCount > 1) 2 else 1,
-            label = { seats ->
-                stringResource(if (seats == 1) TanksStrings.menuPlayersOne else TanksStrings.menuPlayersTwo)
-            },
-            onSelect = onPlayerCountChange,
-            isEnabled = { seats -> seats == 1 || coopAvailable },
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (!coopAvailable) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = stringResource(TanksStrings.menuCoopNeedsKeyboard),
-                color = MutedText,
-                style = LocalPixelType.current.caption,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+private fun MenuBackdrop(assets: TanksAssets?, modifier: Modifier) {
+    BoxWithConstraints(modifier) {
+        val side = minOf(maxWidth, maxHeight)
+        val brick = assets?.brick()
+        if (brick != null) {
+            Canvas(Modifier.fillMaxSize()) {
+                val sidePx = side.toPx()
+                val tile = sidePx / MenuFieldCells
+                val tileSize = IntSize(ceil(tile).toInt(), ceil(tile).toInt())
+                // Start one tile before the edge on the board's own grid, so the wall's joints
+                // line up with the field's cells wherever the two meet.
+                val originX = (size.width - sidePx) / 2f
+                val originY = (size.height - sidePx) / 2f
+                val firstX = originX - ceil(originX / tile) * tile
+                val firstY = originY - ceil(originY / tile) * tile
+                var y = firstY
+                while (y < size.height) {
+                    var x = firstX
+                    while (x < size.width) {
+                        drawImage(
+                            image = brick,
+                            dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
+                            dstSize = tileSize,
+                            filterQuality = FilterQuality.None
+                        )
+                        x += tile
+                    }
+                    y += tile
+                }
+                drawRect(Color.Black.copy(alpha = 0.8f))
+            }
         }
+        AttractBattle(assets = assets, modifier = Modifier.align(Alignment.Center).size(side))
+        // Dark enough that the buttons are plainly the foreground, light enough that the tanks
+        // still read as moving at a glance.
+        Box(Modifier.align(Alignment.Center).size(side).background(Color.Black.copy(alpha = 0.62f)))
     }
 }
+
+private const val MenuFieldCells = 13f
+
+/**
+ * A battle nobody is playing: the menu's own map, both seats flown by [TanksAttractPilot], run
+ * on the real engine at the display's frame rate. When a round ends either way — the wave beaten
+ * or the base lost — it holds the final frame for a moment and starts over.
+ */
+@Composable
+private fun AttractBattle(assets: TanksAssets?, modifier: Modifier) {
+    var level by remember { mutableStateOf<BattleCityLevelData?>(null) }
+    LaunchedEffect(Unit) {
+        level = runCatching { TanksResources.loadMenuLevel() }.getOrNull()
+    }
+    val loadedLevel = level
+    if (loadedLevel == null || assets == null) {
+        Box(modifier.background(BoardBackground))
+        return
+    }
+
+    val engine = remember(loadedLevel) {
+        BattleCityEngine(stageNumber = 0, level = loadedLevel, seed = AttractSeed, initialLives = listOf(9, 9))
+    }
+    val pilot = remember(loadedLevel) { TanksAttractPilot(seed = AttractSeed) }
+    var state by remember(engine) { mutableStateOf(engine.currentState()) }
+    var animationFrame by remember(engine) { mutableIntStateOf(0) }
+
+    LaunchedEffect(engine) {
+        var previous = withFrameNanos { it }
+        var frames = 0
+        var overFor = 0f
+        while (true) {
+            val now = withFrameNanos { it }
+            val delta = ((now - previous) / 1_000_000_000.0).toFloat().coerceIn(0f, 0.25f)
+            previous = now
+            state = if (state.status == BattleCityStatus.Running) {
+                engine.step(delta, pilot.inputs(state, delta)).state
+            } else {
+                overFor += delta
+                if (overFor < RoundOverHoldSeconds) state else engine.reset().also { overFor = 0f }
+            }
+            animationFrame = ++frames
+        }
+    }
+    TanksBoard(modifier = modifier, state = state, assets = assets, animationFrame = animationFrame)
+}
+
+/** Fixed, so the menu opens on the same battle every time — and every screenshot agrees. */
+private const val AttractSeed = 2026_0928L
+private const val RoundOverHoldSeconds = 1.5f
 
 /**
  * Shared chrome for the pages off the menu: a lettered title, the page, and Back. Back takes

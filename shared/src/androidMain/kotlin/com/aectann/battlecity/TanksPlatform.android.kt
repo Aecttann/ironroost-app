@@ -7,6 +7,7 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.media.SoundPool
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
@@ -133,12 +134,20 @@ private class AndroidSoundPlayer(
     private var released = false
     private var engineStreamId = 0
     private var engineRunning = false
+    private val cacheDir = File(context.cacheDir, "battlecity_audio").apply { mkdirs() }
+
+    // Music is a MediaPlayer on a staged copy of the track: SoundPool is for short clips only.
+    // It is torn down whenever sound goes off — the app leaving the foreground included — and
+    // starts the track over when it comes back.
+    private val musicFiles = mutableMapOf<TanksMusic, File>()
+    private var musicWanted: TanksMusic? = null
+    private var musicPlaying: TanksMusic? = null
+    private var musicPlayer: MediaPlayer? = null
 
     init {
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
             if (status == 0) ready[sampleId] = true
         }
-        val cacheDir = File(context.cacheDir, "battlecity_audio").apply { mkdirs() }
         clips.forEach { (clip, bytes) ->
             val staged = File(cacheDir, clip.name.lowercase() + ".wav")
             runCatching {
@@ -154,6 +163,55 @@ private class AndroidSoundPlayer(
         if (this.enabled == enabled) return
         this.enabled = enabled
         if (!enabled) stopEngineLoop() else if (engineRunning) startEngineLoop()
+        reconcileMusic()
+    }
+
+    override fun loadMusic(track: TanksMusic, bytes: ByteArray) {
+        if (released) return
+        val staged = File(cacheDir, track.name.lowercase() + ".mp3")
+        runCatching {
+            if (!staged.exists() || staged.length() != bytes.size.toLong()) staged.writeBytes(bytes)
+        }.onSuccess {
+            musicFiles[track] = staged
+            reconcileMusic()
+        }
+    }
+
+    override fun setMusic(track: TanksMusic?) {
+        musicWanted = track
+        reconcileMusic()
+    }
+
+    private fun reconcileMusic() {
+        val wanted = musicWanted.takeIf { enabled && !released }
+        if (wanted == musicPlaying) return
+        stopMusic()
+        val file = wanted?.let { musicFiles[it] } ?: return
+        musicPlayer = runCatching {
+            MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_GAME)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                setDataSource(file.absolutePath)
+                isLooping = true
+                setVolume(MusicVolume, MusicVolume)
+                prepare()
+                start()
+            }
+        }.getOrNull()
+        musicPlaying = if (musicPlayer != null) wanted else null
+    }
+
+    private fun stopMusic() {
+        musicPlayer?.let { player ->
+            runCatching { player.stop() }
+            player.release()
+        }
+        musicPlayer = null
+        musicPlaying = null
     }
 
     override fun play(clip: TanksClip) {
@@ -172,6 +230,7 @@ private class AndroidSoundPlayer(
         if (released) return
         released = true
         stopEngineLoop()
+        stopMusic()
         soundPool.release()
     }
 
@@ -191,6 +250,7 @@ private class AndroidSoundPlayer(
     private companion object {
         const val SfxVolume = 0.7f
         const val EngineVolume = 0.3f
+        const val MusicVolume = 0.5f
     }
 }
 

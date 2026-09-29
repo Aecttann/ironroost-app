@@ -16,6 +16,7 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 private const val AudioSfx = "files/battle_city/audio/sfx"
 private const val AudioMusic = "files/battle_city/audio/music_loops"
+private const val MenuLevelPath = "files/battle_city/data/levels/menu_demo.json"
 
 /** Every sound clip the game ships, addressed by its packed resource path. */
 enum class TanksClip(val path: String) {
@@ -47,6 +48,24 @@ enum class TanksClip(val path: String) {
 }
 
 /**
+ * Background music. The files are CC0 chiptunes by Juhani Junkala ("Retro Game Music Pack"),
+ * levelled and encoded to MP3 because it is the one format every target, Safari included, plays.
+ *
+ * A file holds [repeats] back-to-back copies of a [loopSeconds]-long seamless loop. MP3 pads
+ * the start and end of a file with a few milliseconds that decoders trim differently, so a
+ * player that can loop a window of the file (Web Audio) loops the second to the second-last
+ * copy: the music is the same on both sides of that seam whatever the decoder did at the ends.
+ * A player that can only loop the whole file hears the padding once per file, not once per loop.
+ */
+enum class TanksMusic(val path: String, val loopSeconds: Double, val repeats: Int) {
+    Menu("$AudioMusic/menu_theme.mp3", loopSeconds = 11.294127, repeats = 4);
+
+    /** The window a seek-capable player should loop, in seconds from the start of the file. */
+    val loopStartSeconds: Double get() = loopSeconds
+    val loopEndSeconds: Double get() = loopSeconds * (repeats - 1)
+}
+
+/**
  * Reads the packed game data. Resource access is the only platform-shaped part of loading,
  * and Compose Resources makes it common, so this whole file is shared.
  */
@@ -67,6 +86,15 @@ object TanksResources {
         val json = Res.readBytes(BattleCityLevelParser.stagePath(stage)).decodeToString()
         BattleCityLevelParser.parse(json).also { levelCache[stage] = it }
     }
+
+    /** One music file, read when it is first wanted rather than with the clips: it is large. */
+    @OptIn(ExperimentalResourceApi::class)
+    suspend fun loadMusic(track: TanksMusic): ByteArray = Res.readBytes(track.path)
+
+    /** The menu's attract-mode battlefield; not a campaign stage. */
+    @OptIn(ExperimentalResourceApi::class)
+    suspend fun loadMenuLevel(): BattleCityLevelData =
+        BattleCityLevelParser.parse(Res.readBytes(MenuLevelPath).decodeToString())
 
     /** Star rating plus map of every stage, for the picker. Read once, then cached. */
     suspend fun loadStageInfos(): Map<Int, BattleCityStageInfo> = stageInfoMutex.withLock {

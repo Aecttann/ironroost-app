@@ -32,6 +32,7 @@
     <string name="tanks_sound">Звук</string>
     <string name="tanks_close">Закрити</string>
     <string name="tanks_controls_hint">Сенсорне керування або WASD / стрілки • Пробіл: вогонь • P: пауза</string>
+    <string name="menu_play">Грати</string>
     <string name="menu_new_game">Нова гра</string>
     <string name="menu_continue">Продовжити</string>
     <string name="menu_settings">Налаштування</string>
@@ -46,6 +47,7 @@
     <string name="about_version">Версія %1$s</string>
     <string name="about_credits_title">Подяки</string>
     <string name="about_credit_font">Шрифт: Pixelify Sans від Stefie Justprince, ліцензія SIL Open Font License 1.1, адаптований як Ironroost Pixel.</string>
+    <string name="about_credit_music">Музика: Juhani Junkala, «Retro Game Music Pack» (CC0).</string>
     <string name="common_back">Назад</string>
     <string name="common_cancel">Скасувати</string>
     <string name="common_reset">Скинути</string>

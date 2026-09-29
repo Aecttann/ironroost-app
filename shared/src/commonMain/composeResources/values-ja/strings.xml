@@ -32,6 +32,7 @@
     <string name="tanks_sound">サウンド</string>
     <string name="tanks_close">閉じる</string>
     <string name="tanks_controls_hint">タッチ操作またはWASD / 矢印キー • スペース：発射 • P：ポーズ</string>
+    <string name="menu_play">プレイ</string>
     <string name="menu_new_game">新しいゲーム</string>
     <string name="menu_continue">つづける</string>
     <string name="menu_settings">設定</string>
@@ -46,6 +47,7 @@
     <string name="about_version">バージョン %1$s</string>
     <string name="about_credits_title">クレジット</string>
     <string name="about_credit_font">フォント：Pixelify Sans（作者 Stefie Justprince、SIL Open Font License 1.1）を Ironroost Pixel として改変。</string>
+    <string name="about_credit_music">音楽：Juhani Junkala「Retro Game Music Pack」（CC0）。</string>
     <string name="common_back">戻る</string>
     <string name="common_cancel">キャンセル</string>
     <string name="common_reset">リセット</string>

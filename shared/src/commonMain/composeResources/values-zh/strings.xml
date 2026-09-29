@@ -32,6 +32,7 @@
     <string name="tanks_sound">声音</string>
     <string name="tanks_close">关闭</string>
     <string name="tanks_controls_hint">触控或 WASD / 方向键 • 空格：开火 • P：暂停</string>
+    <string name="menu_play">开始游戏</string>
     <string name="menu_new_game">新游戏</string>
     <string name="menu_continue">继续</string>
     <string name="menu_settings">设置</string>
@@ -46,6 +47,7 @@
     <string name="about_version">版本 %1$s</string>
     <string name="about_credits_title">致谢</string>
     <string name="about_credit_font">字体：Pixelify Sans，作者 Stefie Justprince，采用 SIL Open Font License 1.1，改编为 Ironroost Pixel。</string>
+    <string name="about_credit_music">音乐：Juhani Junkala，《Retro Game Music Pack》（CC0）。</string>
     <string name="common_back">返回</string>
     <string name="common_cancel">取消</string>
     <string name="common_reset">重置</string>

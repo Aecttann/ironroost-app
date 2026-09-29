@@ -8,6 +8,7 @@ import com.aectann.battlecity.engine.BattleCityLevelParser
 import com.aectann.battlecity.engine.BattleCityMaxDifficulty
 import com.aectann.battlecity.engine.BattleCityMaxStage
 import com.aectann.battlecity.engine.BattleCityStatus
+import com.aectann.battlecity.engine.TanksAttractPilot
 import com.aectann.battlecity.engine.TanksEndlessWaves
 import java.io.File
 import kotlin.test.Test
@@ -103,6 +104,32 @@ class PackedResourcesTest {
             assertEquals(13, state.tiles.cols, "stage $stage board width")
             assertEquals(13, state.tiles.rows, "stage $stage board height")
         }
+    }
+
+    /**
+     * The menu plays a demo battle on its own map behind the buttons. It is not a stage, so none of
+     * the per-stage checks reach it: this is the one that would catch it failing to parse, or
+     * seating a tank inside a wall, before a player saw an empty menu.
+     */
+    @Test
+    fun theMenuBattlefieldParsesAndPlaysItselfForTwoSeats() {
+        val file = resource("files/battle_city/data/levels/menu_demo.json")
+        assertTrue(file.isFile, "the menu battlefield is not packed")
+        val level = BattleCityLevelParser.parse(file.readText())
+        val (baseX, baseY) = level.spawnPoints.base
+        assertEquals('H', level.grid[baseY][baseX], "menu battlefield base tile")
+        listOfNotNull(level.spawnPoints.player1, level.spawnPoints.player2).forEach { (x, y) ->
+            assertEquals('.', level.grid[y][x], "menu battlefield player spawn $x,$y")
+        }
+
+        val engine = BattleCityEngine(stageNumber = 0, level = level, seed = 1L, initialLives = listOf(9, 9))
+        val pilot = TanksAttractPilot(seed = 1L)
+        var state = engine.currentState()
+        repeat(60 * 20) {
+            state = engine.step(1f / 60f, pilot.inputs(state, 1f / 60f)).state
+        }
+        assertEquals(2, state.players.size, "both demo seats should be on the board")
+        assertTrue(state.bullets.isNotEmpty() || state.destroyedEnemies > 0, "twenty seconds of demo with no shooting")
     }
 
     /**

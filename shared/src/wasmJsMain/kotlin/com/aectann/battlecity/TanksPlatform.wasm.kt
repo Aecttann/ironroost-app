@@ -114,6 +114,16 @@ private class BrowserTanksSoundPlayer(
         if (!released) browserAudioSetEngineRunning(running)
     }
 
+    override fun loadMusic(track: TanksMusic, bytes: ByteArray) {
+        if (!released) {
+            browserMusicLoad(track.name, Base64.Default.encode(bytes), track.loopStartSeconds, track.loopEndSeconds)
+        }
+    }
+
+    override fun setMusic(track: TanksMusic?) {
+        if (!released) browserMusicPlay(track?.name)
+    }
+
     override fun release() {
         if (released) return
         released = true
@@ -185,6 +195,14 @@ private fun browserAudioSetEngineRunning(running: Boolean) {
 
 private fun browserAudioRelease() {
     js("globalThis.ironroostPortal?.audioRelease()")
+}
+
+private fun browserMusicLoad(name: String, base64: String, loopStart: Double, loopEnd: Double) {
+    js("globalThis.ironroostPortal?.musicLoad(name, base64, loopStart, loopEnd)")
+}
+
+private fun browserMusicPlay(name: String?) {
+    js("globalThis.ironroostPortal?.musicPlay(name)")
 }
 
 // Kotlin/Wasm js() interop returns a JS number, so the epoch arrives as a Double.
