@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <title>Ironroost Play graphics</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=block">
 <style>
     body { margin: 0; background: #0b0d10; color: #bfc5cc; font: 13px system-ui, sans-serif; }
     #stage { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; align-items: flex-start; }
@@ -17,9 +16,12 @@
 <script type="module">
 /*
  * Draws the Google Play listing graphics from the game's own resources: its sprites, its stage
- * maps and its translated strings, laid out with the sizes and colours of the Compose screens
- * (TanksGameScreen.kt, UiColors.kt). Nothing here is traced from a screenshot, so every scene is
- * reproducible and renders at the store's native 1080x1920 instead of an upscaled phone capture.
+ * maps, its translated strings, its pixel font, and — read straight out of the Kotlin sources —
+ * its colours (UiColors.kt), its block materials (PixelComponents.kt) and its pixel icons
+ * (PixelIcons.kt). The game screen is laid out with the sizes of the portrait touch layout in
+ * GameHud.kt (TanksPlayfield, PortraitStrip, FramedBoard, DirectionPad, FireButton) and drawn with
+ * the same pixel-block routines, so a scene is the game's own screen, staged, at the store's native
+ * 1080x1920 rather than an upscaled phone capture.
  *
  * Serve the repository root and open this page to see every graphic, or pass
  *   ?job=shot&id=<scene id>&lang=<en|uk>   one phone screenshot
@@ -30,32 +32,31 @@
 import { SHOTS, FEATURE, LOCALES } from "./scenes.mjs";
 
 const RES = "/shared/src/commonMain/composeResources";
+const UI_SOURCES = "/shared/src/commonMain/kotlin/com/aectann/battlecity/ui";
 const GFX = `${RES}/files/battle_city/graphics`;
 const LEVELS = `${RES}/files/battle_city/data/levels/prototype_13x13`;
+const FONT_FILE = `${RES}/font/ironroost_pixel.ttf`;
 const LAUNCHER_FOREGROUND = "/androidApp/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png";
 const MAX_STAGE = 35;
 const MAX_DIFFICULTY = 5;
 
-// UiColors.kt, plus the Material defaults the dark scheme in App.kt leaves unset.
-const C = {
-    screen: "#202020",
-    board: "#111111",
-    menu: "#1A1F28",
-    gold: "#E0A03C",
-    muted: "#BFC5CC",
-    green: "#9BD16B",
-    brickRed: "#B4522A",
-    onSurface: "#E7EAEF",
-    onSurfaceVariant: "#CAC4D0",
-    dialog: "#2B2930",
-    outline: "#938F99"
-};
-
 // A phone is ~411dp wide; the store frame draws that screen 945px wide.
 const DP = 2.3;
 const dp = value => value * DP;
+// PixelUnitDp (2dp) in whole pixels, as Density.pixelUnit() rounds it.
+const U = Math.max(1, Math.floor(dp(2)));
 
-const FONT = `Roboto, "Segoe UI", Arial, sans-serif`;
+const FONT = `"Ironroost Pixel", "Segoe UI", sans-serif`;
+
+// PixelTypography: size and line height in sp; title and display are bold.
+const TYPE = {
+    caption: { size: 11, line: 14 },
+    body: { size: 16, line: 21 },
+    label: { size: 16, line: 20 },
+    heading: { size: 22, line: 28 },
+    title: { size: 33, line: 40, bold: true },
+    display: { size: 44, line: 52, bold: true }
+};
 
 // ------------------------------------------------------------------------------ resources
 
@@ -73,6 +74,12 @@ function loadImage(src) {
     return imageCache.get(src);
 }
 
+async function fetchText(path) {
+    const response = await fetch(path);
+    if (!response.ok) throw new Error(`missing ${path}`);
+    return response.text();
+}
+
 /** Actor sprite names map onto files the same way TanksAssets.spritePaths() does. */
 function spritePath(name, dir) {
     if (name.startsWith("player_")) {
@@ -84,24 +91,15 @@ function spritePath(name, dir) {
     return `${GFX}/tanks/enemy/${file}_${dir}.png`;
 }
 
-const POWERUP_FILES = {
-    star: "star", gun: "gun_1990_variant", helmet: "helmet", timer: "timer",
-    shovel: "shovel", grenade: "grenade", tank_life: "tank_life", boat: "boat_1990_variant"
-};
-
 async function loadStage(number) {
     const id = String(number).padStart(2, "0");
-    const response = await fetch(`${LEVELS}/prototype_stage_${id}.json`);
-    if (!response.ok) throw new Error(`missing stage ${number}`);
-    return response.json();
+    return JSON.parse(await fetchText(`${LEVELS}/prototype_stage_${id}.json`));
 }
 
 /** Reads the game's own strings.xml, so the HUD says exactly what the game says. */
 async function loadStrings(lang) {
     const dir = lang === "en" ? "values" : `values-${lang}`;
-    const response = await fetch(`${RES}/${dir}/strings.xml`);
-    if (!response.ok) throw new Error(`missing strings for ${lang}`);
-    const doc = new DOMParser().parseFromString(await response.text(), "application/xml");
+    const doc = new DOMParser().parseFromString(await fetchText(`${RES}/${dir}/strings.xml`), "application/xml");
     const table = {};
     for (const node of doc.querySelectorAll("string")) {
         table[node.getAttribute("name")] = node.textContent
@@ -119,66 +117,95 @@ async function loadStrings(lang) {
     };
 }
 
+/** "#rrggbb" for a Compose Color(0xAARRGGBB) literal. */
+const hex = argb => `#${argb.slice(-6).toLowerCase()}`;
+
+let C = {};
+let MATERIALS = {};
+let ICONS = {};
+
+/**
+ * The palette, the block materials and the pixel icons, parsed out of the Kotlin sources, so a
+ * colour or an icon changed in the game changes here on the next render.
+ */
+async function loadUiSources() {
+    const colours = await fetchText(`${UI_SOURCES}/UiColors.kt`);
+    for (const [, name, value] of colours.matchAll(/internal val (\w+) = Color\(0x([0-9A-Fa-f]{8})\)/g)) C[name] = hex(value);
+    for (const [, name, alias] of colours.matchAll(/internal val (\w+) = (\w+)\s*$/gm)) if (C[alias]) C[name] = C[alias];
+    C.White = "#ffffff";
+
+    const components = await fetchText(`${UI_SOURCES}/PixelComponents.kt`);
+    const materials = components.slice(components.indexOf("enum class PixelMaterial"));
+    const body = materials.slice(materials.indexOf("{") + 1, materials.indexOf("\n}"));
+    for (const [, name, args] of body.matchAll(/^\s*(\w+)\((.*)\),?\s*$/gm)) {
+        const colour = arg => {
+            const literal = /Color\(0x([0-9A-Fa-f]{8})\)/.exec(arg);
+            if (literal) return hex(literal[1]);
+            if (arg.trim() === "Color.White") return "#ffffff";
+            const named = C[arg.trim()];
+            if (!named) throw new Error(`unknown colour ${arg} in PixelMaterial.${name}`);
+            return named;
+        };
+        const [face, light, dark, content] = args.split(/,(?![^(]*\))/).map(colour);
+        MATERIALS[name] = { face, light, dark, content };
+    }
+
+    const icons = await fetchText(`${UI_SOURCES}/PixelIcons.kt`);
+    for (const [, name, rows] of icons.matchAll(/val (\w+) = PixelIcon\(([\s\S]*?)\)/g)) {
+        ICONS[name] = [...rows.matchAll(/"([.#]+)"/g)].map(match => match[1]);
+    }
+    for (const needed of ["Brick", "Steel", "Alarm", "Disabled"]) if (!MATERIALS[needed]) throw new Error(`no material ${needed}`);
+    for (const needed of ["Pause", "Play", "ArrowUp", "Star", "Lock"]) if (!ICONS[needed]) throw new Error(`no icon ${needed}`);
+}
+
 let fontsOk = true;
 
 async function loadFonts() {
-    const sample = "Ironroost Рівень 0123";
-    await Promise.all(["400", "500", "700", "900"].map(weight =>
-        document.fonts.load(`${weight} 20px Roboto`, sample).catch(() => [])));
-    fontsOk = document.fonts.check("700 20px Roboto", sample);
-    if (!fontsOk) console.warn("Roboto did not load; text falls back to a system font");
+    const face = new FontFace("Ironroost Pixel", `url(${FONT_FILE})`);
+    try {
+        document.fonts.add(await face.load());
+    } catch (error) {
+        console.warn("the game font did not load", error);
+    }
+    fontsOk = document.fonts.check(`20px "Ironroost Pixel"`, "Ironroost Рівень 0123");
+    if (!fontsOk) console.warn("Ironroost Pixel did not load; text falls back to a system font");
 }
 
 // ---------------------------------------------------------------------------- drawing kit
 
-function font(size, weight = 400) {
-    return `${weight} ${size}px ${FONT}`;
+function font(size, bold = false) {
+    return `${bold ? "bold " : ""}${size}px ${FONT}`;
 }
 
-function measure(ctx, text, size, weight = 400) {
-    ctx.font = font(size, weight);
+function measure(ctx, text, size, bold = false) {
+    ctx.font = font(size, bold);
     return ctx.measureText(text).width;
 }
 
-function drawText(ctx, text, x, y, { size, weight = 400, color = "#fff", align = "left", baseline = "middle" }) {
-    ctx.font = font(size, weight);
-    ctx.fillStyle = color;
+/**
+ * Text as the game letters it: [shadow] is the hard one-unit drop shadow of TextStyle.shadowed(),
+ * straight down and right, no blur.
+ */
+function drawText(ctx, text, x, y, { size, bold = false, color = "#fff", align = "left", baseline = "middle", shadow = null }) {
+    ctx.font = font(size, bold);
     ctx.textAlign = align;
     ctx.textBaseline = baseline;
+    if (shadow) {
+        ctx.fillStyle = shadow;
+        ctx.fillText(text, x + U, y + U);
+    }
+    ctx.fillStyle = color;
     ctx.fillText(text, x, y);
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
+/** A style from TYPE at the screen's scale. */
+function styled(name) {
+    const style = TYPE[name];
+    return { size: dp(style.size), line: dp(style.line), bold: Boolean(style.bold) };
 }
 
-function fillRound(ctx, x, y, w, h, r, fill, stroke, strokeWidth = dp(1)) {
-    roundRect(ctx, x, y, w, h, r);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) {
-        ctx.lineWidth = strokeWidth;
-        ctx.strokeStyle = stroke;
-        roundRect(ctx, x + strokeWidth / 2, y + strokeWidth / 2, w - strokeWidth, h - strokeWidth, Math.max(0, r - strokeWidth / 2));
-        ctx.stroke();
-    }
-}
-
-function circle(ctx, cx, cy, radius, fill, stroke) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) {
-        ctx.lineWidth = dp(1);
-        ctx.strokeStyle = stroke;
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius - dp(0.5), 0, Math.PI * 2);
-        ctx.stroke();
-    }
-}
-
-function wrap(ctx, text, maxWidth, size, weight) {
-    ctx.font = font(size, weight);
+function wrap(ctx, text, maxWidth, size, bold = false) {
+    ctx.font = font(size, bold);
     const lines = [];
     let line = "";
     for (const word of text.split(" ")) {
@@ -194,14 +221,125 @@ function wrap(ctx, text, maxWidth, size, weight) {
     return lines;
 }
 
-/** Lays items out the way Arrangement.SpaceBetween does, returning each item's left edge. */
-function spaceBetween(widths, start, total) {
-    if (widths.length === 1) return [start];
-    const gap = (total - widths.reduce((a, b) => a + b, 0)) / (widths.length - 1);
-    const xs = [];
-    let x = start;
-    for (const width of widths) { xs.push(x); x += width + gap; }
-    return xs;
+function rect(ctx, color, x, y, w, h) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+}
+
+function lerpColour(a, b, t) {
+    const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16));
+    const pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+    return `rgb(${pa.map((v, i) => Math.round(v + (pb[i] - v) * t)).join(",")})`;
+}
+
+/** drawPixelBlock: an outlined block, its face [lift] units above its base, lit top and left. */
+function drawPixelBlock(ctx, material, lift, x, y, w, h, { outline = C.Ink, faceTint = 0, texture = true } = {}) {
+    const m = MATERIALS[material];
+    rect(ctx, outline, x + U, y, w - 2 * U, h);
+    rect(ctx, outline, x, y + U, w, h - 2 * U);
+    rect(ctx, m.dark, x + U, y + U, w - 2 * U, h - 2 * U);
+    const top = y + U + (2 - lift) * U;
+    const faceHeight = h - 2 * U - 2 * U;
+    const face = faceTint > 0 ? lerpColour(m.face, m.light, faceTint) : m.face;
+    rect(ctx, face, x + U, top, w - 2 * U, faceHeight);
+    if (texture && material === "Brick") drawMortar(ctx, x + U, top, w - 2 * U, faceHeight);
+    if (texture && material === "Steel") drawRivets(ctx, x + U, top, w - 2 * U, faceHeight);
+    rect(ctx, m.light, x + U, top, w - 2 * U, U);
+    rect(ctx, m.light, x + U, top, U, faceHeight);
+    rect(ctx, lerpColour(m.face, m.dark, 0.55), x + w - 2 * U, top + U, U, faceHeight - U);
+    return { left: x + U, top, width: w - 2 * U, height: faceHeight };
+}
+
+function drawMortar(ctx, ox, oy, w, h) {
+    const course = 6 * U;
+    const brick = 12 * U;
+    let row = 0;
+    for (let y = oy + course; y < oy + h - U; y += course) {
+        rect(ctx, C.BrickMortar, ox, y, w, U);
+        row++;
+    }
+    for (let index = 0; index <= row; index++) {
+        const rowTop = oy + index * course + (index === 0 ? 0 : U);
+        const rowBottom = Math.min(oy + (index + 1) * course, oy + h);
+        for (let x = ox + (index % 2 === 0 ? brick / 2 : brick); x < ox + w - U; x += brick) {
+            rect(ctx, C.BrickMortar, x, rowTop, U, rowBottom - rowTop);
+        }
+    }
+}
+
+function drawRivets(ctx, ox, oy, w, h) {
+    if (w < 12 * U || h < 8 * U) return;
+    const inset = 2 * U;
+    for (const [x, y] of [[ox + inset, oy + inset], [ox + w - inset - U, oy + inset], [ox + inset, oy + h - inset - 2 * U], [ox + w - inset - U, oy + h - inset - 2 * U]]) {
+        rect(ctx, C.SteelLight, x, y, U, U);
+        rect(ctx, C.SteelDark, x, y + U, U, U);
+    }
+}
+
+/** drawPixelPanel: a dark plate with cut corners, framed in riveted steel when [framed]. */
+function drawPixelPanel(ctx, x, y, w, h, framed) {
+    rect(ctx, C.Ink, x + U, y, w - 2 * U, h);
+    rect(ctx, C.Ink, x, y + U, w, h - 2 * U);
+    const ring = framed ? 3 * U : 0;
+    if (framed) {
+        rect(ctx, C.SteelFace, x + U, y + U, w - 2 * U, h - 2 * U);
+        rect(ctx, C.SteelLight, x + U, y + U, w - 2 * U, U);
+        rect(ctx, C.SteelLight, x + U, y + U, U, h - 2 * U);
+        rect(ctx, C.SteelDark, x + U, y + h - 2 * U, w - 2 * U, U);
+        rect(ctx, C.SteelDark, x + w - 2 * U, y + U, U, h - 2 * U);
+        for (const [px, py] of [[2 * U, 2 * U], [w - 3 * U, 2 * U], [2 * U, h - 3 * U], [w - 3 * U, h - 3 * U]]) rect(ctx, C.SteelLight, x + px, y + py, U, U);
+        rect(ctx, C.Ink, x + ring, y + ring, w - 2 * ring, h - 2 * ring);
+    }
+    const inner = ring + U;
+    rect(ctx, C.PanelFace, x + inner, y + inner, w - 2 * inner, h - 2 * inner);
+    rect(ctx, C.PanelLight, x + inner, y + inner, w - 2 * inner, U);
+}
+
+/** Modifier.pixelInset: a sunken well, dark lip above and left, lit lip below and right. */
+function drawPixelInset(ctx, x, y, w, h, fill = C.PanelDark) {
+    rect(ctx, fill, x, y, w, h);
+    rect(ctx, C.Ink, x, y, w, U);
+    rect(ctx, C.Ink, x, y, U, h);
+    rect(ctx, C.PanelLight, x, y + h - U, w, U);
+    rect(ctx, C.PanelLight, x + w - U, y, U, h);
+}
+
+/** drawPixelIcon: one icon pixel per [cell], over a hard shadow one cell down and right. */
+function drawPixelIcon(ctx, name, x, y, cell, color, shadow = C.Ink) {
+    const rows = ICONS[name];
+    if (!rows) throw new Error(`no pixel icon ${name}`);
+    const pass = (tint, shift) => rows.forEach((row, iy) => [...row].forEach((pixel, ix) => {
+        if (pixel === "#") rect(ctx, tint, x + ix * cell + shift, y + iy * cell + shift, cell, cell);
+    }));
+    if (shadow) pass(shadow, cell);
+    pass(color, 0);
+}
+
+const iconSize = (name, cell) => ({ width: ICONS[name][0].length * cell, height: ICONS[name].length * cell });
+
+/**
+ * PixelBlockButton at rest: the block, then its content laid out inside the padding the
+ * composable gives it (one unit round the face, the base's depth below).
+ */
+function drawBlockButton(ctx, material, x, y, w, h, { lift = 2 } = {}) {
+    drawPixelBlock(ctx, material, lift, x, y, w, h);
+    const offset = (2 - lift) * U;
+    return { x: x + U, y: y + U + offset, width: w - 2 * U, height: h - U - U * 3 };
+}
+
+/** PixelButton: a block with its label centred on it, shadowed unless the material is gold. */
+function drawButton(ctx, text, material, x, y, w, h = dp(44)) {
+    const box = drawBlockButton(ctx, material, x, y, w, h);
+    const m = MATERIALS[material];
+    const style = styled("label");
+    drawText(ctx, text, box.x + box.width / 2, box.y + box.height / 2, { size: style.size, color: m.content, align: "center", shadow: m.content === C.Ink ? null : C.Ink });
+}
+
+/** PixelIconButton: a square steel block with a shadowed pixel icon in the middle. */
+function drawIconButton(ctx, icon, x, y, size) {
+    const box = drawBlockButton(ctx, "Steel", x, y, size, size);
+    const { width, height } = iconSize(icon, U);
+    drawPixelIcon(ctx, icon, box.x + (box.width - width - U) / 2, box.y + (box.height - height - U) / 2, U, "#ffffff");
 }
 
 // ---------------------------------------------------------------------------------- board
@@ -216,24 +354,23 @@ function buildBoard(stage, spec) {
     return { grid, quarters: spec.quarters ?? {} };
 }
 
+/** TanksBoard, as it draws: tiles, power-ups, tanks, shells, the forest over them, then effects. */
 async function drawBoard(ctx, x0, y0, size, board, actors, { frame = 0 } = {}) {
     const rows = board.grid.length;
     const cols = board.grid[0].length;
     const tile = size / Math.max(rows, cols);
     ctx.imageSmoothingEnabled = false;
 
-    ctx.fillStyle = "#000";
-    ctx.fillRect(x0, y0, size, size);
-    ctx.fillStyle = C.board;
-    ctx.fillRect(x0, y0, tile * cols, tile * rows);
+    rect(ctx, "#000000", x0, y0, size, size);
+    rect(ctx, C.BoardBackground, x0, y0, tile * cols, tile * rows);
 
-    const brick = await loadImage(`${GFX}/tiles/brick_damage_0.png`);
+    const brick = await loadImage(`${GFX}/tiles/brick.png`);
     const tiles = {
         S: await loadImage(`${GFX}/tiles/steel.png`),
         W: await loadImage(`${GFX}/tiles/water_${frame % 2}.png`),
         I: await loadImage(`${GFX}/tiles/ice.png`),
         F: await loadImage(`${GFX}/tiles/forest_${frame % 2}.png`),
-        H: await loadImage(`${GFX}/ui/base_eagle_alive.png`)
+        H: await loadImage(`${GFX}/ui/base_nest_alive.png`)
     };
     const cell = Math.ceil(tile);
 
@@ -271,7 +408,7 @@ async function drawBoard(ctx, x0, y0, size, board, actors, { frame = 0 } = {}) {
     drawTiles(false);
 
     for (const actor of actors.filter(a => a.kind === "powerup")) {
-        sprite(await loadImage(`${GFX}/powerups/${POWERUP_FILES[actor.type]}.png`), actor.x, actor.y);
+        sprite(await loadImage(`${GFX}/powerups/${actor.type}.png`), actor.x, actor.y);
     }
     for (const actor of actors.filter(a => a.kind === "tank")) {
         sprite(await loadImage(spritePath(actor.sprite, actor.dir)), actor.x, actor.y);
@@ -291,6 +428,22 @@ async function drawBoard(ctx, x0, y0, size, board, actors, { frame = 0 } = {}) {
     }
 }
 
+/** BrickWall: the game's bricks on the board's own grid, filling the screen, dimmed back. */
+async function drawBrickWall(ctx, w, h, fieldSide, dim) {
+    const brick = await loadImage(`${GFX}/tiles/brick.png`);
+    ctx.imageSmoothingEnabled = false;
+    const tile = Math.max(4, fieldSide / 13);
+    const size = Math.ceil(tile);
+    const originX = (w - fieldSide) / 2;
+    const originY = (h - fieldSide) / 2;
+    const firstX = originX - Math.ceil(originX / tile) * tile;
+    const firstY = originY - Math.ceil(originY / tile) * tile;
+    for (let y = firstY; y < h; y += tile) {
+        for (let x = firstX; x < w; x += tile) ctx.drawImage(brick, Math.round(x), Math.round(y), size, size);
+    }
+    rect(ctx, `rgba(0,0,0,${dim})`, 0, 0, w, h);
+}
+
 // ------------------------------------------------------------------------------ game screen
 
 const UPGRADE_NAMES = {
@@ -298,224 +451,291 @@ const UPGRADE_NAMES = {
     ricochet: "upgrade_ricochet", treads: "upgrade_treads", piercing: "upgrade_piercing",
     bulwark: "upgrade_bulwark", salvage: "upgrade_salvage"
 };
+const UPGRADE_ICONS = {
+    rapid_fire: "RapidFire", twin_shot: "TwinShot", armor: "Armor", ricochet: "Ricochet",
+    treads: "Treads", piercing: "Piercing", bulwark: "Bulwark", salvage: "Salvage"
+};
 const UPGRADE_MAX = { rapid_fire: 3, twin_shot: 3, armor: 3, ricochet: 3, treads: 3, piercing: 2, bulwark: 3, salvage: 5 };
 
-/** The game screen's height for a scene: HUD rows, board, control strip, as TanksGameScreen stacks them. */
-function screenHeight(scene) {
-    const hudRows = scene.hud.loadout?.length ? 3 : 2;
-    const hud = hudRows * 24 + (hudRows - 1) * 4;
-    return dp(8 + hud + 8 + 387 + 12 + 192 + 8);
+// TanksPlayfield, portrait with touch controls.
+const SCREEN_W = dp(411);
+const EDGE = dp(10);
+const GAP = dp(10);
+const STRIP_H = dp(64);
+const CONTROLS_H = dp(164);
+const FRAME = dp(8);
+
+/** snapBoardSide: a whole multiple of the sprites' 208 pixels when that costs at most a fifth. */
+function boardSide(room) {
+    const native = 13 * 16;
+    const scale = room / native;
+    const whole = Math.floor(scale);
+    return whole >= 2 && whole / scale >= 0.8 ? whole * native : Math.floor(room);
 }
 
-async function drawHud(ctx, x, y, width, scene, t) {
+/** The board's side and the screen's height, the column fitted to the board with nothing spare. */
+function screenLayout() {
+    const board = boardSide(SCREEN_W - 2 * EDGE - 2 * FRAME);
+    const height = EDGE + STRIP_H + GAP + (board + 2 * FRAME) + GAP + CONTROLS_H + EDGE;
+    return { board, height };
+}
+
+/** PortraitStrip: lives, stage or wave, enemies still to come, score, across one plate. */
+async function drawStrip(ctx, x, y, w, scene, t) {
     const hud = scene.hud;
-    const life = await loadImage(`${GFX}/ui/life_tank_icon.png`);
-    const flag = await loadImage(`${GFX}/ui/flag_stage.png`);
-    const queue = await loadImage(`${GFX}/tanks/enemy/basic_up.png`);
+    drawPixelPanel(ctx, x, y, w, STRIP_H, false);
+    const inner = { x: x + dp(2) + dp(10), y: y + dp(2) + dp(4), w: w - 2 * (dp(2) + dp(10)), h: STRIP_H - 2 * (dp(2) + dp(4)) };
+    const mid = inner.y + inner.h / 2;
+    const label = styled("label");
+    const caption = styled("caption");
     ctx.imageSmoothingEnabled = false;
 
-    // Row one: lives, stage or wave, score.
-    let rowY = y + dp(12);
-    const livesText = `x${hud.lives}`;
-    const lifeIcons = Math.min(hud.lives, 5);
-    const leftW = lifeIcons * dp(16) + dp(6) + measure(ctx, livesText, dp(13), 700);
+    const tank = await loadImage(`${GFX}/tanks/player/green_level${Math.min(Math.max(hud.level, 1), 4)}_up.png`);
+    const flag = await loadImage(`${GFX}/ui/flag_stage.png`);
+    const queue = await loadImage(`${GFX}/tanks/enemy/basic_up.png`);
     const stageText = hud.wave != null ? t("tanks_wave", hud.wave) : t("tanks_stage", hud.stage);
-    const midW = dp(18) + dp(4) + measure(ctx, stageText, dp(13), 700);
-    const scoreText = t("tanks_score", hud.score);
-    const rightW = measure(ctx, scoreText, dp(13), 700);
-    const [lx, mx, rx] = spaceBetween([leftW, midW, rightW], x, width);
-    for (let i = 0; i < lifeIcons; i++) ctx.drawImage(life, lx + i * dp(16), rowY - dp(7), dp(14), dp(14));
-    drawText(ctx, livesText, lx + lifeIcons * dp(16) + dp(6), rowY, { size: dp(13), weight: 700 });
-    ctx.drawImage(flag, mx, rowY - dp(9), dp(18), dp(18));
-    drawText(ctx, stageText, mx + dp(22), rowY, { size: dp(13), weight: 700 });
-    drawText(ctx, scoreText, rx, rowY, { size: dp(13), weight: 700 });
+    const items = [
+        { icon: tank, iconSize: dp(22), text: `×${hud.lives}`, style: label, color: "#ffffff" },
+        { icon: flag, iconSize: dp(16), text: stageText, style: caption, color: "#ffffff" },
+        { icon: queue, iconSize: dp(16), text: String(hud.pending), style: label, color: "#ffffff" },
+        { icon: null, text: String(hud.score), style: label, color: C.GoldLight }
+    ];
+    const widths = items.map(item => (item.icon ? item.iconSize + dp(4) : 0) + measure(ctx, item.text, item.style.size));
+    const gap = (inner.w - widths.reduce((a, b) => a + b, 0)) / (items.length - 1);
+    let cursor = inner.x;
+    items.forEach((item, index) => {
+        let at = cursor;
+        if (item.icon) {
+            ctx.drawImage(item.icon, Math.round(at), Math.round(mid - item.iconSize / 2), Math.round(item.iconSize), Math.round(item.iconSize));
+            at += item.iconSize + dp(4);
+        }
+        drawText(ctx, item.text, at, mid, { size: item.style.size, color: item.color, shadow: C.Ink });
+        cursor += widths[index] + gap;
+    });
+}
 
-    // Row two: the queue, enemies, tank level.
-    rowY += dp(28);
-    const queueIcons = Math.min(hud.pending, 10);
-    const extra = hud.pending > 10 ? `+${hud.pending - 10}` : "";
-    const queueW = queueIcons * dp(16) + (extra ? measure(ctx, extra, dp(11)) : 0);
-    const enemiesText = t("tanks_enemies", hud.destroyed, hud.total);
-    const levelText = t("tanks_tank_level", hud.level);
-    const [qx, ex, tx] = spaceBetween([queueW, measure(ctx, enemiesText, dp(12)), measure(ctx, levelText, dp(12))], x, width);
-    for (let i = 0; i < queueIcons; i++) ctx.drawImage(queue, qx + i * dp(16), rowY - dp(7), dp(14), dp(14));
-    if (extra) drawText(ctx, extra, qx + queueIcons * dp(16), rowY, { size: dp(11), color: C.muted });
-    drawText(ctx, enemiesText, ex, rowY, { size: dp(12) });
-    drawText(ctx, levelText, tx, rowY, { size: dp(12), color: C.green });
-
-    // Row three, endless only: the build so far.
-    if (hud.loadout?.length) {
-        rowY += dp(28);
-        const labels = hud.loadout.map(([id, level]) => `${t(UPGRADE_NAMES[id])} ${level}`).join("  ·  ");
-        // The game would wrap this onto a second line and shrink the board; the replica keeps one
-        // line, so a build too long for it has to be shortened in scenes.mjs rather than clipped.
-        if (measure(ctx, labels, dp(11)) > width) throw new Error(`the upgrade row is too long for one line: ${labels}`);
-        drawText(ctx, labels, x, rowY, { size: dp(11), color: C.gold });
+/** DirectionPad: four steel arms round a steel boss, the held arm sunk and lit. */
+function drawPad(ctx, x, y, size, held) {
+    const third = Math.floor(size / 3 / U) * U;
+    const ox = x + (size - third * 3) / 2;
+    const oy = y + (size - third * 3) / 2;
+    const cell = (c, r) => [ox + c * third, oy + r * third];
+    drawPixelBlock(ctx, "Steel", 1, ...cell(1, 1), third, third, { texture: false });
+    const arms = [["up", 1, 0, "ArrowUp"], ["left", 0, 1, "ArrowLeft"], ["right", 2, 1, "ArrowRight"], ["down", 1, 2, "ArrowDown"]];
+    for (const [dir, c, r, icon] of arms) {
+        const pressed = dir === held;
+        const [ax, ay] = cell(c, r);
+        drawPixelBlock(ctx, "Steel", pressed ? 0 : 2, ax, ay, third, third, { faceTint: pressed ? 0.3 : 0, texture: false });
+        const { width, height } = iconSize(icon, U);
+        const sink = pressed ? 2 * U : 0;
+        const ix = ax + Math.floor((third - width) / 2 / U) * U;
+        const iy = ay + Math.floor((third - 2 * U - height) / 2 / U) * U + sink;
+        drawPixelIcon(ctx, icon, ix, iy, U, pressed ? "#ffffff" : C.SteelLight);
     }
 }
 
-function drawControls(ctx, x, y, width, scene, t) {
-    const controls = scene.controls;
-    const rowH = dp(192);
-    const inner = { x: x + dp(8), y: y + dp(8), w: width - dp(16), h: rowH - dp(16) };
-    const glass = (gx, gy, gw, gh) => fillRound(ctx, gx, gy, gw, gh, dp(28), "rgba(0,0,0,0.28)", "rgba(255,255,255,0.22)");
-
-    // Joystick, 152dp, centred vertically on the left.
-    const stick = dp(152);
-    const sx = inner.x;
-    const sy = inner.y + (inner.h - stick) / 2;
-    glass(sx, sy, stick, stick);
-    const box = { x: sx + dp(8), y: sy + dp(8), s: stick - dp(16) };
-    const centre = { x: box.x + box.s / 2, y: box.y + box.s / 2 };
-    circle(ctx, centre.x, centre.y, (box.s - dp(20)) / 2, "rgba(255,255,255,0.12)", "rgba(255,255,255,0.30)");
-    const reach = box.s / 2 - dp(22) - dp(20);
-    const knobOffset = { up: [0, -reach], down: [0, reach], left: [-reach, 0], right: [reach, 0] }[controls.knob] ?? [0, 0];
-    circle(ctx, centre.x + knobOffset[0], centre.y + knobOffset[1], dp(20), "rgba(255,255,255,0.36)", "rgba(255,255,255,0.50)");
-
-    // Pause and fire, 150dp wide on the right.
-    const panelW = dp(150);
-    const px = inner.x + inner.w - panelW;
-    glass(px, inner.y, panelW, inner.h);
-    const content = { x: px + dp(8), y: inner.y + dp(8), w: panelW - dp(16), h: inner.h - dp(16) };
-    const column = dp(40) + dp(16) + dp(94);
-    const top = content.y + (content.h - column) / 2;
-    const cx = content.x + content.w / 2;
-    fillRound(ctx, cx - dp(47), top, dp(94), dp(40), dp(18), "rgba(255,255,255,0.16)", "rgba(255,255,255,0.30)");
-    const pauseLabel = controls.paused ? t("tanks_start") : t("tanks_pause");
-    drawText(ctx, pauseLabel, cx, top + dp(20), { size: dp(12), weight: 700, align: "center" });
-    const fireY = top + dp(56) + dp(47);
-    circle(ctx, cx, fireY, dp(47), controls.firing ? "rgba(255,90,69,0.92)" : "rgba(209,61,47,0.82)", "rgba(255,255,255,0.28)");
-    drawText(ctx, t("tanks_fire"), cx, fireY, { size: dp(12), weight: 700, align: "center" });
+/** FireButton: the red trigger, its lettering riding up or sinking with it. */
+function drawFire(ctx, x, y, size, pressed, t) {
+    drawPixelBlock(ctx, "Alarm", pressed ? 0 : 2, x, y, size, size, { texture: false });
+    const heading = styled("heading");
+    const box = { x: x + U, y: y + U, w: size - 2 * U, h: size - 4 * U };
+    drawText(ctx, t("tanks_fire"), box.x + box.w / 2, box.y + box.h / 2 + (pressed ? U : -U), { size: heading.size, color: "#ffffff", align: "center", shadow: C.Ink });
 }
 
+/** The upgrade pick over the frozen board: title, subtitle, a card for each choice, and Skip. */
 function drawUpgradePicker(ctx, w, h, overlay, t) {
-    ctx.fillStyle = "rgba(0,0,0,0.902)";
-    ctx.fillRect(0, 0, w, h);
+    rect(ctx, "rgba(0,0,0,0.851)", 0, 0, w, h);
+    const panelW = Math.min(dp(560), w - 2 * dp(16));
+    const innerW = panelW - 2 * dp(8) - 2 * dp(24);
+    const cardW = Math.min(Math.max(innerW, dp(280)), dp(460));
+    const label = styled("label");
+    const caption = styled("caption");
+    const body = styled("body");
+    const heading = styled("heading");
+    const iconWell = dp(56);
+    const textW = cardW - 2 * U - dp(22) - dp(16) - iconWell - dp(14);
 
-    const cardW = dp(0.85 * (411 - 40));
-    const cardH = dp(70);
-    const contentH = dp(24 + 4 + 24 + 16) + overlay.choices.length * (cardH + dp(8)) + dp(4 + 40);
-    let y = (h - contentH) / 2;
+    const cards = overlay.choices.map(([id, held]) => {
+        const lines = wrap(ctx, t(`${UPGRADE_NAMES[id]}_desc`), textW, body.size);
+        const textH = label.line + dp(4) + lines.length * body.line;
+        const contentH = Math.max(iconWell, textH);
+        return { id, held, lines, height: U + dp(10) + contentH + dp(10) + 3 * U, contentH };
+    });
+    const subLines = wrap(ctx, t("upgrade_subtitle"), innerW, body.size);
+    const contentH = heading.line + dp(4) + subLines.length * body.line + dp(16) +
+        cards.reduce((sum, card) => sum + card.height + dp(10), 0) + dp(4) + dp(44);
+    const panelH = contentH + 2 * dp(8) + 2 * dp(18);
+    const px = (w - panelW) / 2;
+    const py = (h - panelH) / 2;
+    drawPixelPanel(ctx, px, py, panelW, panelH, true);
+
     const cx = w / 2;
+    let y = py + dp(8) + dp(18);
+    drawText(ctx, t("upgrade_title", overlay.wave), cx, y + heading.line / 2, { size: heading.size, color: C.AccentGold, align: "center", shadow: C.Ink });
+    y += heading.line + dp(4);
+    subLines.forEach(line => {
+        drawText(ctx, line, cx, y + body.line / 2, { size: body.size, color: C.MutedText, align: "center" });
+        y += body.line;
+    });
+    y += dp(16);
 
-    drawText(ctx, t("upgrade_title", overlay.wave), cx, y + dp(12), { size: dp(24), weight: 700, color: C.gold, align: "center" });
-    y += dp(28);
-    drawText(ctx, t("upgrade_subtitle"), cx, y + dp(12), { size: dp(13), color: C.muted, align: "center" });
-    y += dp(24 + 16);
-
-    for (const [id, held] of overlay.choices) {
+    for (const card of cards) {
         const x = cx - cardW / 2;
-        fillRound(ctx, x, y, cardW, cardH, cardH / 2, null, C.outline);
-        const left = x + dp(24);
-        const right = x + cardW - dp(24);
-        const nameY = y + dp(8 + 6 + 10);
-        drawText(ctx, t(UPGRADE_NAMES[id]), left, nameY, { size: dp(15), weight: 700, color: C.gold });
-        const next = held + 1;
-        const levelText = next >= UPGRADE_MAX[id] ? t("upgrade_max") : t("upgrade_level", next);
-        drawText(ctx, levelText, right, nameY, { size: dp(12), color: C.muted, align: "right" });
-        drawText(ctx, t(`${UPGRADE_NAMES[id]}_desc`), left, nameY + dp(22), { size: dp(12) });
-        y += cardH + dp(8);
+        const box = drawBlockButton(ctx, "Steel", x, y, cardW, card.height);
+        const left = box.x + dp(22);
+        const top = box.y + dp(10);
+        const wellY = top + (card.contentH - iconWell) / 2;
+        drawPixelInset(ctx, left, wellY, iconWell, iconWell);
+        const icon = UPGRADE_ICONS[card.id];
+        const cell = Math.floor(dp(4));
+        const { width, height } = iconSize(icon, cell);
+        drawPixelIcon(ctx, icon, left + (iconWell - width - cell) / 2, wellY + (iconWell - height - cell) / 2, cell, C.GoldLight);
+
+        const textX = left + iconWell + dp(14);
+        const right = box.x + box.width - dp(16);
+        const textTop = top + (card.contentH - (label.line + dp(4) + card.lines.length * body.line)) / 2;
+        drawText(ctx, t(UPGRADE_NAMES[card.id]), textX, textTop + label.line / 2, { size: label.size, color: C.GoldLight, shadow: C.Ink });
+        const next = card.held + 1;
+        const levelText = next >= UPGRADE_MAX[card.id] ? t("upgrade_max") : t("upgrade_level", next);
+        drawText(ctx, levelText, right, textTop + label.line / 2, { size: caption.size, color: "#ffffff", align: "right", shadow: C.Ink });
+        card.lines.forEach((line, index) => {
+            drawText(ctx, line, textX, textTop + label.line + dp(4) + index * body.line + body.line / 2, { size: body.size, color: "#ffffff", shadow: C.Ink });
+        });
+        y += card.height + dp(10);
     }
     y += dp(4);
-    drawText(ctx, t("upgrade_skip"), cx, y + dp(20), { size: dp(14), weight: 500, color: C.muted, align: "center" });
+    const skipW = measure(ctx, t("upgrade_skip"), label.size) + 2 * dp(16) + 2 * U;
+    drawButton(ctx, t("upgrade_skip"), "Steel", cx - Math.max(skipW, dp(48)) / 2, y, Math.max(skipW, dp(48)));
 }
 
+/** The stage list from the pause menu: a framed dialog of stage tiles, four to a row. */
 async function drawStagePicker(ctx, w, h, overlay, t) {
-    // The pause overlay stays under the dialog, then the dialog's own scrim.
-    ctx.fillStyle = "rgba(0,0,0,0.902)";
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = "rgba(0,0,0,0.32)";
-    ctx.fillRect(0, 0, w, h);
+    // The pause overlay's scrim, then the dialog's own.
+    rect(ctx, "rgba(0,0,0,0.851)", 0, 0, w, h);
+    rect(ctx, "rgba(0,0,0,0.32)", 0, 0, w, h);
 
     const stages = await Promise.all(Array.from({ length: MAX_STAGE }, (_, i) => loadStage(i + 1)));
-    const dialogW = dp(320);
-    const dialogH = h - dp(48);
+    const dialogW = Math.min(dp(460), w - 2 * dp(24));
+    const dialogH = h - 2 * dp(24);
     const dx = (w - dialogW) / 2;
     const dy = (h - dialogH) / 2;
-    ctx.save();
-    roundRect(ctx, dx, dy, dialogW, dialogH, dp(28));
-    ctx.fillStyle = C.dialog;
-    ctx.fill();
-    ctx.clip();
+    drawPixelPanel(ctx, dx, dy, dialogW, dialogH, true);
+    const pad = { x: dp(8) + dp(20), y: dp(8) + dp(16) };
+    const innerW = dialogW - 2 * pad.x;
+    const heading = styled("heading");
+    const body = styled("body");
+    const label = styled("label");
+    const cx = dx + dialogW / 2;
 
-    const pad = dp(24);
-    let y = dy + pad;
-    drawText(ctx, t("tanks_select_stage_title"), dx + pad, y + dp(16), { size: dp(24), color: C.onSurface });
-    y += dp(32 + 16);
+    let y = dy + pad.y;
+    drawText(ctx, t("tanks_select_stage_title"), cx, y + heading.line / 2, { size: heading.size, color: C.AccentGold, align: "center", shadow: C.Ink });
+    y += heading.line + dp(14);
+    drawText(ctx, t("tanks_highest_completed_stage", overlay.highestCompleted), cx, y + body.line / 2, { size: body.size, color: C.MutedText, align: "center" });
+    y += body.line + dp(10);
 
-    const buttonsTop = dy + dialogH - pad - dp(40);
-    const gridBottom = buttonsTop - dp(24);
+    const buttonsTop = dy + dialogH - pad.y - dp(44);
+    const gridBottom = buttonsTop - dp(18);
     ctx.save();
     ctx.beginPath();
     ctx.rect(dx, y, dialogW, gridBottom - y);
     ctx.clip();
 
-    drawText(ctx, t("tanks_highest_completed_stage", overlay.highestCompleted), dx + pad, y + dp(10), { size: dp(14), color: C.onSurfaceVariant });
-    y += dp(20 + 8);
-
-    const minimapColours = { B: C.brickRed, S: "#C9C9C9", W: "#2A4FB4", F: "#2E8B34", I: "#BFE3EC", H: C.gold };
-    const tileW = (dialogW - pad * 2 - dp(6) * 3) / 4;
-    const tileH = dp(4) + (tileW - dp(8)) + dp(20) + dp(20) + dp(4);
+    const minimapColours = { B: C.BrickRed, S: "#c9c9c9", W: "#2a4fb4", F: "#2e8b34", I: "#bfe3ec", H: C.AccentGold };
+    const tileW = (innerW - 3 * dp(8)) / 4;
+    const starCell = Math.max(1, Math.floor(dp(1)));
+    const starSize = iconSize("Star", starCell);
+    // The list opens focused on the stage being played, and focus brings its row into view: the
+    // grid is scrolled just far enough for that row to show in full, as Compose scrolls it.
+    const tileContentW = tileW - 2 * U - dp(8) - dp(4);
+    const tileRowH = U + dp(6) + tileContentW + dp(4) + label.line + (starSize.height + starCell) + dp(4) + 3 * U + dp(8);
+    const visibleRows = Math.max(1, Math.floor((gridBottom - y + dp(8)) / tileRowH));
+    const selectedRow = Math.floor((overlay.selected - 1) / 4);
+    const firstRow = Math.max(0, selectedRow - visibleRows + 1);
+    y -= firstRow * tileRowH;
     for (let row = 0; row * 4 < MAX_STAGE && y < gridBottom; row++) {
+        if (row < firstRow) { y += tileRowH; continue; }
+        let rowH = 0;
         for (let col = 0; col < 4; col++) {
             const number = row * 4 + col + 1;
             if (number > MAX_STAGE) break;
             const stage = stages[number - 1];
             const available = number <= overlay.highestCompleted + 1;
             const selected = number === overlay.selected;
-            const tx = dx + pad + col * (tileW + dp(6));
-            const border = selected ? C.gold : available ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.12)";
-            fillRound(ctx, tx, y, tileW, tileH, dp(6), null, border, selected ? dp(2) : dp(1));
-
-            const mapSize = tileW - dp(8);
-            const mx = tx + dp(4);
-            const my = y + dp(4);
-            fillRound(ctx, mx, my, mapSize, mapSize, dp(3), "#0C0C0C");
-            const cell = mapSize / stage.grid.length;
+            const tx = dx + pad.x + col * (tileW + dp(8));
+            const contentW = tileW - 2 * U - dp(8) - dp(4);
+            const tileH = U + dp(6) + contentW + dp(4) + label.line + (starSize.height + starCell) + dp(4) + 3 * U;
+            rowH = tileH;
+            const material = !available ? "Disabled" : selected ? "Brick" : "Steel";
+            const box = drawBlockButton(ctx, material, tx, y, tileW, tileH, { lift: selected ? 1 : 2 });
+            const content = MATERIALS[material].content;
+            const mx = box.x + dp(8);
+            const my = box.y + dp(6);
+            rect(ctx, "#0c0c0c", mx, my, contentW, contentW);
+            const cell = contentW / stage.grid.length;
             ctx.globalAlpha = available ? 1 : 0.35;
             stage.grid.forEach((line, gy) => [...line].forEach((ch, gx) => {
                 const colour = minimapColours[ch];
-                if (!colour) return;
-                ctx.fillStyle = colour;
-                ctx.fillRect(mx + gx * cell, my + gy * cell, cell + 0.5, cell + 0.5);
+                if (colour) rect(ctx, colour, mx + gx * cell, my + gy * cell, cell, cell);
             }));
             ctx.globalAlpha = 1;
-
-            const numberY = my + mapSize + dp(10);
-            drawText(ctx, String(number), tx + tileW / 2, numberY, { size: dp(11), weight: 700, color: available ? C.onSurface : "#888888", align: "center" });
+            const centre = mx + contentW / 2;
+            const numberY = my + contentW + dp(4) + label.line / 2;
+            let numberX = centre;
+            if (!available) {
+                const lock = iconSize("Lock", starCell);
+                const textW = measure(ctx, String(number), label.size);
+                const total = lock.width + starCell + dp(4) + textW;
+                drawPixelIcon(ctx, "Lock", centre - total / 2, numberY - lock.height / 2, starCell, content);
+                numberX = centre - total / 2 + lock.width + starCell + dp(4) + textW / 2;
+            }
+            drawText(ctx, String(number), numberX, numberY, { size: label.size, color: content, align: "center", shadow: C.Ink });
             const filled = Math.min(Math.max(stage.difficulty ?? 1, 1), MAX_DIFFICULTY);
-            const stars = `[${"*".repeat(filled)}${"-".repeat(MAX_DIFFICULTY - filled)}]`;
-            drawText(ctx, stars, tx + tileW / 2, numberY + dp(20), { size: dp(9), color: available ? C.gold : "#888888", align: "center" });
+            const starsW = MAX_DIFFICULTY * (starSize.width + starCell);
+            const starsY = my + contentW + dp(4) + label.line;
+            for (let i = 0; i < MAX_DIFFICULTY; i++) {
+                const lit = available ? C.GoldLight : C.DisabledText;
+                drawPixelIcon(ctx, "Star", centre - starsW / 2 + i * (starSize.width + starCell), starsY, starCell, i < filled ? lit : C.SteelDark);
+            }
         }
-        y += tileH + dp(8);
+        y += rowH + dp(8);
     }
     ctx.restore();
 
-    drawText(ctx, t("tanks_close"), dx + dialogW - pad - dp(12), buttonsTop + dp(20), { size: dp(14), weight: 500, color: C.gold, align: "right" });
-    ctx.restore();
+    const closeW = measure(ctx, t("tanks_close"), label.size) + 2 * dp(16) + 2 * U;
+    drawButton(ctx, t("tanks_close"), "Steel", cx - closeW / 2, buttonsTop, closeW);
 }
 
-/** One phone screen of the game, drawn at the origin. */
+/** One phone screen of the game, drawn at the origin: TanksGameScreen in portrait with touch. */
 async function drawGameScreen(ctx, w, h, scene, t) {
-    ctx.fillStyle = C.screen;
-    ctx.fillRect(0, 0, w, h);
+    rect(ctx, C.ScreenBackground, 0, 0, w, h);
+    await drawBrickWall(ctx, w, h, Math.min(w, h), 0.84);
 
-    const padX = dp(12);
-    let y = dp(8);
-    await drawHud(ctx, padX, y, w - padX * 2, scene, t);
-    const hudRows = scene.hud.loadout?.length ? 3 : 2;
-    y += dp(hudRows * 24 + (hudRows - 1) * 4) + dp(8);
+    const { board: side } = screenLayout();
+    let y = EDGE;
+    await drawStrip(ctx, EDGE, y, w - 2 * EDGE, scene, t);
+    y += STRIP_H + GAP;
 
-    const boardSize = dp(387);
+    const framed = side + 2 * FRAME;
+    const boardRoom = h - EDGE - STRIP_H - GAP - GAP - CONTROLS_H - EDGE;
+    const fx = (w - framed) / 2;
+    const fy = y + (boardRoom - framed) / 2;
+    drawPixelPanel(ctx, Math.round(fx), Math.round(fy), Math.round(framed), Math.round(framed), true);
     const stage = await loadStage(scene.board.stage);
     const board = buildBoard(stage, scene.board);
-    // Snap the board to whole tiles so every sprite pixel lands on the same grid.
-    const tile = Math.floor(boardSize / 13);
-    const snapped = tile * 13;
-    await drawBoard(ctx, (w - snapped) / 2, y + (boardSize - snapped) / 2, snapped, board, scene.actors ?? []);
-    y += boardSize + dp(12);
+    await drawBoard(ctx, Math.round(fx + FRAME), Math.round(fy + FRAME), side, board, scene.actors ?? []);
+    y += boardRoom + GAP;
 
-    drawControls(ctx, 0, y, w, scene, t);
+    // The touch row: the pad on the left, pause over the trigger on the right.
+    const controls = scene.controls;
+    const pad = CONTROLS_H - dp(8);
+    drawPad(ctx, EDGE, y + (CONTROLS_H - pad) / 2, pad, controls.knob);
+    const fire = dp(96);
+    const pause = dp(52);
+    const column = pause + dp(8) + fire;
+    const colX = w - EDGE - fire;
+    const colY = y + (CONTROLS_H - column) / 2;
+    drawIconButton(ctx, controls.paused ? "Play" : "Pause", colX + (fire - pause) / 2, colY, pause);
+    drawFire(ctx, colX, colY + pause + dp(8), fire, controls.firing, t);
 
     if (scene.overlay?.kind === "upgrades") drawUpgradePicker(ctx, w, h, scene.overlay, t);
     if (scene.overlay?.kind === "stages") await drawStagePicker(ctx, w, h, scene.overlay, t);
@@ -526,13 +746,16 @@ async function drawGameScreen(ctx, w, h, scene, t) {
 async function drawLegend(ctx, kind, cx, y) {
     ctx.imageSmoothingEnabled = false;
     if (kind === "levels") {
-        const size = 88;
+        const size = 96;
         const gap = 64;
         const total = size * 4 + gap * 3;
         let x = cx - total / 2;
         for (let level = 1; level <= 4; level++) {
             ctx.drawImage(await loadImage(`${GFX}/tanks/player/green_level${level}_up.png`), x, y, size, size);
-            if (level < 4) drawText(ctx, "›", x + size + gap / 2, y + size / 2, { size: 64, weight: 700, color: C.gold, align: "center" });
+            if (level < 4) {
+                const arrow = iconSize("ArrowRight", 6);
+                drawPixelIcon(ctx, "ArrowRight", x + size + (gap - arrow.width) / 2, y + (size - arrow.height) / 2, 6, C.AccentGold);
+            }
             x += size + gap;
         }
         return size;
@@ -544,12 +767,17 @@ async function drawLegend(ctx, kind, cx, y) {
         const total = size * types.length + gap * (types.length - 1);
         let x = cx - total / 2;
         for (const type of types) {
-            ctx.drawImage(await loadImage(`${GFX}/powerups/${POWERUP_FILES[type]}.png`), x, y, size, size);
+            ctx.drawImage(await loadImage(`${GFX}/powerups/${type}.png`), x, y, size, size);
             x += size + gap;
         }
         return size;
     }
     return 0;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
 }
 
 async function renderShot(canvas, scene, lang) {
@@ -571,16 +799,32 @@ async function renderShot(canvas, scene, lang) {
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, W, H);
 
-    // One line each: a second line pushes the phone off the bottom, so a caption that needs one
-    // is too long for a thumbnail anyway and fails here instead of shipping.
+    // One line each, in the game's own lettering: a second line pushes the phone off the bottom,
+    // so a caption that needs one is too long for a thumbnail anyway and fails here instead.
     const caption = scene.caption[lang];
-    for (const [text, room, size, weight] of [[caption.title, W - 120, 78, 900], [caption.sub, W - 160, 38, 400]]) {
-        if (wrap(ctx, text, room, size, weight).length > 1) throw new Error(`caption too long for one line (${lang}): ${text}`);
+    for (const [text, room, size, bold] of [[caption.title, W - 120, 72, true], [caption.sub, W - 120, 34, false]]) {
+        if (wrap(ctx, text, room, size, bold).length > 1) throw new Error(`caption too long for one line (${lang}): ${text}`);
     }
     let y = 92;
-    drawText(ctx, caption.title, W / 2, y + 39, { size: 78, weight: 900, align: "center" });
+    ctx.save();
+    ctx.font = font(72, true);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = C.Ink;
+    ctx.fillText(caption.title, W / 2 + 6, y + 36 + 6);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(caption.title, W / 2, y + 36);
+    ctx.restore();
     y += 96;
-    drawText(ctx, caption.sub, W / 2, y + 21, { size: 38, color: C.muted, align: "center" });
+    ctx.save();
+    ctx.font = font(34);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = C.Ink;
+    ctx.fillText(caption.sub, W / 2 + 3, y + 18 + 3);
+    ctx.fillStyle = C.MutedText;
+    ctx.fillText(caption.sub, W / 2, y + 18);
+    ctx.restore();
     y += 50;
     if (scene.legend) {
         y += 16;
@@ -588,15 +832,17 @@ async function renderShot(canvas, scene, lang) {
     }
 
     // The phone screen sits under the caption and runs off the bottom edge if it has to.
-    const screenW = dp(411);
-    const screenH = screenHeight(scene);
+    const screenW = SCREEN_W;
+    const screenH = screenLayout().height;
     const sx = (W - screenW) / 2;
     const sy = Math.max(y + 36, H - screenH - 48);
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.6)";
     ctx.shadowBlur = 60;
     ctx.shadowOffsetY = 18;
-    fillRound(ctx, sx, sy, screenW, screenH, 44, C.screen);
+    roundRect(ctx, sx, sy, screenW, screenH, 44);
+    ctx.fillStyle = C.ScreenBackground;
+    ctx.fill();
     ctx.restore();
 
     ctx.save();
@@ -605,38 +851,12 @@ async function renderShot(canvas, scene, lang) {
     ctx.translate(sx, sy);
     await drawGameScreen(ctx, screenW, screenH, scene, t);
     ctx.restore();
-    fillRound(ctx, sx, sy, screenW, screenH, 44, null, "rgba(255,255,255,0.10)", 2);
-}
-
-/** Title lettering shared with the CrazyGames covers (docs/crazygames/media/cover.html). */
-function drawTitle(ctx, x, baseline, size, align = "left") {
-    const text = "IRONROOST";
-    const spacing = Math.round(size * 0.07);
-    ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
-    ctx.textAlign = align;
-    ctx.textBaseline = "middle";
-    ctx.letterSpacing = `${spacing}px`;
-
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-    ctx.shadowBlur = size * 0.34;
-    ctx.shadowOffsetY = size * 0.07;
-    ctx.fillStyle = "#0a0d12";
-    ctx.fillText(text, x, baseline);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    roundRect(ctx, sx + 1, sy + 1, screenW - 2, screenH - 2, 43);
+    ctx.stroke();
     ctx.restore();
-
-    ctx.lineWidth = size * 0.11;
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#0a0d12";
-    ctx.strokeText(text, x, baseline);
-
-    const ink = ctx.createLinearGradient(0, baseline - size * 0.62, 0, baseline + size * 0.62);
-    ink.addColorStop(0, "#ffe09a");
-    ink.addColorStop(0.5, "#e0a03c");
-    ink.addColorStop(1, "#b8761c");
-    ctx.fillStyle = ink;
-    ctx.fillText(text, x, baseline);
-    ctx.letterSpacing = "0px";
 }
 
 async function renderFeature(canvas, lang) {
@@ -652,44 +872,47 @@ async function renderFeature(canvas, lang) {
     ctx.fillStyle = back;
     ctx.fillRect(0, 0, W, H);
 
-    // The whole stage on the right, at a whole-pixel scale, so the fight reads as the real board.
+    // The whole stage on the right, at a whole-pixel scale, in its steel ring.
     const stage = await loadStage(FEATURE.board.stage);
     const board = buildBoard(stage, FEATURE.board);
-    const size = 36 * 13;
-    const bx = W - size - 24;
+    const size = 32 * 13;
+    const ring = 12;
+    const bx = W - size - ring - 28;
     const by = (H - size) / 2;
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.7)";
     ctx.shadowBlur = 40;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(bx, by, size, size);
+    rect(ctx, C.Ink, bx - ring, by - ring, size + 2 * ring, size + 2 * ring);
     ctx.restore();
+    drawPixelPanel(ctx, bx - ring, by - ring, size + 2 * ring, size + 2 * ring, true);
     await drawBoard(ctx, bx, by, size, board, FEATURE.actors);
 
     const glow = ctx.createRadialGradient(bx * 0.45, H * 0.45, 0, bx * 0.45, H * 0.45, bx * 0.75);
     glow.addColorStop(0, "rgba(224,160,60,0.16)");
     glow.addColorStop(1, "rgba(224,160,60,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, bx, H);
+    ctx.fillRect(0, 0, bx - ring, H);
 
-    // The largest title that fits the space left of the board.
-    const left = 48;
-    const room = bx - left - 36;
-    let titleSize = 96;
-    while (titleSize > 40 && titleWidth(ctx, titleSize) > room) titleSize -= 2;
-    drawTitle(ctx, left, H * 0.43, titleSize);
-    const lines = wrap(ctx, FEATURE.tagline[lang], room, 36, 500);
+    // The logotype at the largest whole multiple that fits left of the board, the tagline under it.
+    const logo = await loadImage(`${GFX}/ui/logo.png`);
+    // Margins kept just tight enough for the logotype at 2x beside a 2x board.
+    const left = 24;
+    const room = bx - ring - left - 16;
+    const scale = Math.max(1, Math.floor(room / logo.width));
+    const lw = logo.width * scale;
+    const lh = logo.height * scale;
+    const ly = Math.round(H * 0.42 - lh / 2);
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.9)";
+    ctx.shadowBlur = lh * 0.5;
+    ctx.drawImage(logo, left, ly, lw, lh);
+    ctx.restore();
+    ctx.drawImage(logo, left, ly, lw, lh);
+    const lines = wrap(ctx, FEATURE.tagline[lang], room, 34);
     lines.forEach((line, i) => {
-        drawText(ctx, line, left + 4, H * 0.43 + titleSize * 0.62 + 34 + i * 46, { size: 36, weight: 500, color: C.onSurface });
+        drawText(ctx, line, left + 4, ly + lh + 44 + i * 44, { size: 34, color: "#e7eaef", shadow: C.Ink });
     });
-}
-
-function titleWidth(ctx, size) {
-    ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
-    ctx.letterSpacing = `${Math.round(size * 0.07)}px`;
-    const width = ctx.measureText("IRONROOST").width + size * 0.11;
-    ctx.letterSpacing = "0px";
-    return width;
 }
 
 /**
@@ -702,7 +925,7 @@ async function renderIcon(canvas) {
     canvas.height = 512;
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = C.menu;
+    ctx.fillStyle = C.MenuBackground;
     ctx.fillRect(0, 0, 512, 512);
     const foreground = await loadImage(LAUNCHER_FOREGROUND);
     const crop = 256;
@@ -830,6 +1053,7 @@ const params = new URLSearchParams(location.search);
 window.__result = null;
 (async () => {
     await loadFonts();
+    await loadUiSources();
     if (params.has("job")) {
         try {
             window.__result = await runJob(params);

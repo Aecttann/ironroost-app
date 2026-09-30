@@ -17,12 +17,12 @@ Every map was made for this game. Blast through brick a quarter at a time, hide 
 KNOW YOUR ENEMY
 Basic, fast, power and armored tanks each fight differently. Flashing tanks drop a bonus when you destroy them:
 • Star – a stronger gun, one step at a time, up to shells that break steel
-• Gun – full firepower at once
-• Helmet – a shield for a few seconds
-• Clock – every enemy freezes
-• Shovel – your base walls turn to steel for a while
-• Grenade – clears every enemy on the board
-• Tank – an extra life
+• Shells – full firepower at once
+• Shield – a few seconds of protection
+• Hourglass – every enemy freezes
+• Steel plates – your base walls turn to steel for a while
+• Bomb – clears every enemy on the board
+• Heart – an extra life
 • Boat – drive across water
 
 ENDLESS MODE

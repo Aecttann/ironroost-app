@@ -17,12 +17,12 @@ Jede Karte wurde für dieses Spiel gebaut. Schieß dich viertelweise durch Ziege
 KENNE DEINEN GEGNER
 Standard-, schnelle, starke und gepanzerte Panzer kämpfen jeweils anders. Blinkende Panzer hinterlassen beim Zerstören einen Bonus:
 • Stern – eine stärkere Kanone, Stufe für Stufe, bis die Granaten Stahl durchschlagen
-• Kanone – sofort volle Feuerkraft
-• Helm – ein Schild für einige Sekunden
-• Uhr – alle Gegner erstarren
-• Schaufel – die Mauern deiner Basis werden eine Zeit lang zu Stahl
-• Granate – vernichtet alle Gegner auf dem Feld
-• Panzer – ein Extraleben
+• Geschosse – sofort volle Feuerkraft
+• Schild – einige Sekunden Schutz
+• Sanduhr – alle Gegner erstarren
+• Stahlplatten – die Mauern deiner Basis werden eine Zeit lang zu Stahl
+• Bombe – vernichtet alle Gegner auf dem Feld
+• Herz – ein Extraleben
 • Boot – fahr über Wasser
 
 ENDLOSMODUS

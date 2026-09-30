@@ -17,12 +17,12 @@ Her harita bu oyun için tasarlandı. Tuğlaları çeyrek çeyrek del, ormanda s
 DÜŞMANINI TANI
 Standart, hızlı, güçlü ve zırhlı tankların her biri farklı savaşır. Yanıp sönen tanklar yok edildiğinde bir bonus bırakır:
 • Yıldız – adım adım güçlenen top, sonunda çeliği delen mermiler
-• Top – tüm ateş gücü bir anda
-• Kask – birkaç saniyelik kalkan
-• Saat – tüm düşmanlar donar
-• Kürek – üssünün duvarları bir süreliğine çelik olur
-• El bombası – haritadaki tüm düşmanları yok eder
-• Tank – ekstra can
+• Mermiler – tüm ateş gücü bir anda
+• Kalkan – birkaç saniyelik koruma
+• Kum saati – tüm düşmanlar donar
+• Çelik levhalar – üssünün duvarları bir süreliğine çelik olur
+• Bomba – haritadaki tüm düşmanları yok eder
+• Kalp – ekstra can
 • Tekne – suyun üzerinden geç
 
 SONSUZ MOD

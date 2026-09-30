@@ -14,7 +14,7 @@ java docs/play/CheckPlayListing.java
 | Console field | Source |
 |---|---|
 | App name, short and full description, release notes | `listing/<locale>.md` — en-US, uk, de-DE, hi-IN, ja-JP, ko-KR, tr-TR, zh-CN |
-| App icon, 512×512, 32-bit PNG | `graphics/icon-512.png` |
+| App icon, 512×512, 32-bit PNG | `graphics/icon-512.png`, cut from the launcher icon that `docs/art/icon.js` draws |
 | Feature graphic, 1024×500, 24-bit PNG | `graphics/feature-graphic/<locale>.png` (en-US, uk) |
 | Phone screenshots, 1080×1920 | `graphics/phone/<locale>/` (en-US, uk), in upload order |
 | Privacy policy | https://aecttann.github.io/ironroost-site/ (Ukrainian: `/uk/`) |
@@ -90,14 +90,16 @@ node docs/play/media/render.js --serve     # serve the repo and preview media/st
 
 `render.js` starts its own headless Chrome on a throwaway profile, renders each job in
 `media/studio.html` and writes the PNGs under `graphics/`, checking every file's size and channel
-layout. The page loads Roboto from Google Fonts, so it needs a network connection; without one a
-fallback font is used and each file is reported as failed. If Node is not installed system-wide,
+layout. All text is set in the game's own font, Ironroost Pixel, loaded from the game's resources;
+if it fails to load a fallback font is used and each file is reported as failed. If Node is not installed system-wide,
 the Kotlin Gradle plugin has already downloaded one: `~/.gradle/nodejs/node-*/node.exe`.
 
 `media/scenes.mjs` holds every scene — the stage, the actors on it, the HUD numbers, and the
-captions in each language. `media/studio.html` draws the game screen with the sizes and colours of
-`TanksGameScreen.kt` and `UiColors.kt`, and reads the HUD text from the game's `strings.xml`, so a
-changed string or sprite shows up on the next render. Captions and the endless upgrade row must
-each fit on one line; the renderer fails rather than wrapping them. To add a language, add its
+captions in each language. `media/studio.html` draws the portrait touch layout of the game screen
+with the sizes in `GameHud.kt` and the game's own pixel-block routines. It reads the colours from
+`UiColors.kt`, the block materials from `PixelComponents.kt`, the pixel icons from `PixelIcons.kt`
+and the HUD text from the game's `strings.xml`, so a
+changed string or sprite shows up on the next render. Captions must each fit on one line
+(the portrait HUD has no endless build list, so the scenes carry none); the renderer fails rather than wrapping them. To add a language, add its
 captions and tagline, map it in `LOCALES`, and add it to `GRAPHIC_LOCALES` in
 `CheckPlayListing.java`.

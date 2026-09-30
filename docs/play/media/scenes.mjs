@@ -22,7 +22,7 @@
 /** Play Console locale for each language the listing graphics are rendered in. */
 export const LOCALES = { en: "en-US", uk: "uk" };
 
-/** Walls the Shovel power-up and the Bulwark upgrade turn to steel around the eagle. */
+/** Walls the steel-plate power-up and the Bulwark upgrade turn to steel around the nest. */
 const BASE_WALLS = { "5,11": "S", "6,11": "S", "7,11": "S", "5,12": "S", "7,12": "S" };
 
 export const SHOTS = [
@@ -83,8 +83,8 @@ export const SHOTS = [
     {
         id: "3-bonuses",
         caption: {
-            en: { title: "Grab the bonuses", sub: "Shields, steel walls, grenades, a boat and more." },
-            uk: { title: "Збирай бонуси", sub: "Щит, сталеві стіни, граната, човен та інше." }
+            en: { title: "Grab the bonuses", sub: "Shields, steel walls, bombs, a boat and more." },
+            uk: { title: "Збирай бонуси", sub: "Щит, сталеві стіни, бомба, човен та інше." }
         },
         legend: "powerups",
         board: { stage: 29, set: BASE_WALLS },
@@ -112,8 +112,7 @@ export const SHOTS = [
         },
         board: { stage: 12 },
         hud: {
-            lives: 2, wave: 4, score: 6850, pending: 0, destroyed: 14, total: 14, level: 2,
-            loadout: [["rapid_fire", 1], ["ricochet", 1], ["armor", 1]]
+            lives: 2, wave: 4, score: 6850, pending: 0, destroyed: 14, total: 14, level: 2
         },
         controls: { knob: null, firing: false },
         actors: [
@@ -134,8 +133,7 @@ export const SHOTS = [
         },
         board: { stage: 12, set: BASE_WALLS, quarters: { "6,6": 3, "4,5": 13 } },
         hud: {
-            lives: 3, wave: 9, score: 24650, pending: 7, destroyed: 11, total: 24, level: 3,
-            loadout: [["rapid_fire", 2], ["ricochet", 2], ["armor", 1], ["bulwark", 1]]
+            lives: 3, wave: 9, score: 24650, pending: 7, destroyed: 11, total: 24, level: 3
         },
         controls: { knob: "up", firing: true },
         actors: [
@@ -173,8 +171,8 @@ export const SHOTS = [
 /** The feature graphic: a real stage behind the title, one fight on it. */
 export const FEATURE = {
     tagline: {
-        en: "Defend the eagle's nest",
-        uk: "Захисти гніздо орла"
+        en: "Guard the iron egg",
+        uk: "Бережи залізне яйце"
     },
     board: { stage: 18, quarters: { "6,6": 12, "5,8": 13, "8,4": 10 } },
     actors: [
