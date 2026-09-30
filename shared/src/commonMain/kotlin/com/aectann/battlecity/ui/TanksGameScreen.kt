@@ -964,35 +964,45 @@ private fun UpgradeCard(
         focusRequester = focusRequester,
         contentPadding = PaddingValues(start = 22.dp, end = 16.dp, top = 10.dp, bottom = 10.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // The upgrade's mark in a sunken well, so the three cards tell apart at a glance.
+            Box(
+                modifier = Modifier.size(56.dp).pixelInset(),
+                contentAlignment = Alignment.Center
             ) {
+                PixelIconImage(icon = PixelIcons.upgrade(upgrade), color = GoldLight, cell = PixelUnitDp * 2)
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(TanksStrings.upgradeName(upgrade)),
+                        color = GoldLight,
+                        style = LocalPixelType.current.label.shadowed()
+                    )
+                    // What a card is worth depends on what the run already holds, so the level it
+                    // would move to is on the card rather than buried in the HUD.
+                    Text(
+                        text = if (currentLevel + 1 >= upgrade.maxLevel) {
+                            stringResource(TanksStrings.upgradeMax)
+                        } else {
+                            stringResource(TanksStrings.upgradeLevel, currentLevel + 1)
+                        },
+                        color = Color.White,
+                        style = LocalPixelType.current.caption.shadowed()
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = stringResource(TanksStrings.upgradeName(upgrade)),
-                    color = GoldLight,
-                    style = LocalPixelType.current.label.shadowed()
-                )
-                // What a card is worth depends on what the run already holds, so the level it
-                // would move to is on the card rather than buried in the HUD.
-                Text(
-                    text = if (currentLevel + 1 >= upgrade.maxLevel) {
-                        stringResource(TanksStrings.upgradeMax)
-                    } else {
-                        stringResource(TanksStrings.upgradeLevel, currentLevel + 1)
-                    },
+                    text = stringResource(TanksStrings.upgradeDescription(upgrade)),
                     color = Color.White,
-                    style = LocalPixelType.current.caption.shadowed()
+                    style = LocalPixelType.current.body.shadowed()
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(TanksStrings.upgradeDescription(upgrade)),
-                color = Color.White,
-                style = LocalPixelType.current.body.shadowed()
-            )
         }
     }
 }

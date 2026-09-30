@@ -3,6 +3,7 @@ package com.aectann.battlecity.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -148,12 +150,15 @@ fun MenuScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                MenuIcon(PixelIcons.Daily, stringResource(TanksStrings.menuDaily), onDaily, PixelMaterial.Gold, badge = dailyClaimable)
-                MenuIcon(PixelIcons.Collection, stringResource(TanksStrings.menuCollection), onCollection)
-                MenuIcon(PixelIcons.Records, stringResource(TanksStrings.menuLeaderboard), onLeaderboard)
-                MenuIcon(PixelIcons.Settings, stringResource(TanksStrings.menuSettings), onSettings)
-                MenuIcon(PixelIcons.About, stringResource(TanksStrings.menuAbout), onAbout)
+            // Five cells sharing the width there is, up to 80 dp each: a label in a long language
+            // gets every dp going before it has to shrink (MenuIcon).
+            Row(modifier = Modifier.widthIn(max = 408.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                val cell = Modifier.weight(1f)
+                MenuIcon(PixelIcons.Daily, stringResource(TanksStrings.menuDaily), onDaily, cell, PixelMaterial.Gold, badge = dailyClaimable)
+                MenuIcon(PixelIcons.Collection, stringResource(TanksStrings.menuCollection), onCollection, cell)
+                MenuIcon(PixelIcons.Records, stringResource(TanksStrings.menuLeaderboard), onLeaderboard, cell)
+                MenuIcon(PixelIcons.Settings, stringResource(TanksStrings.menuSettings), onSettings, cell)
+                MenuIcon(PixelIcons.About, stringResource(TanksStrings.menuAbout), onAbout, cell)
             }
         }
     }
@@ -186,27 +191,43 @@ private fun MenuEntry(
 }
 
 /**
- * One of the secondary destinations: an icon button with its name under it, in a fixed-width
- * cell so five of them share a phone's width.
+ * One of the secondary destinations: an icon button with its name under it. The name may take
+ * two lines but never breaks inside a word: a word wider than the cell — "Налаштування",
+ * "Einstellungen" — sets the whole label a size smaller instead of being cut in two.
  */
 @Composable
 private fun MenuIcon(
     icon: PixelIcon,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier,
     material: PixelMaterial = PixelMaterial.Steel,
     badge: Boolean = false
 ) {
-    Column(modifier = Modifier.width(62.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         PixelIconButton(icon = icon, label = label, onClick = onClick, material = material, size = 52.dp, badge = badge)
         Spacer(Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = Color.White,
-            style = LocalPixelType.current.caption.shadowed(),
-            textAlign = TextAlign.Center,
-            maxLines = 2
-        )
+        BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Text(
+                text = label,
+                color = Color.White,
+                style = fitLongestWord(label, LocalPixelType.current.caption.shadowed(), maxWidth),
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+/** [style], scaled down just enough for the longest word of [text] to fit [width] on one line. */
+@Composable
+private fun fitLongestWord(text: String, style: TextStyle, width: Dp): TextStyle {
+    val measurer = rememberTextMeasurer()
+    val widthPx = with(LocalDensity.current) { width.toPx() }
+    return remember(text, style, widthPx) {
+        val longest = text.split(' ', '\n').filter { it.isNotEmpty() }
+            .maxOfOrNull { measurer.measure(it, style, softWrap = false, maxLines = 1).size.width } ?: 0
+        if (longest <= widthPx) style else style.copy(fontSize = style.fontSize * (widthPx / longest * 0.97f))
     }
 }
 
@@ -215,7 +236,7 @@ private fun MenuIcon(
  * smaller than 1× — so its blocks stay square. Before the image has loaded, the name in type.
  */
 @Composable
-private fun MenuLogo(logo: ImageBitmap?, maxWidth: Dp, maxHeight: Dp) {
+internal fun MenuLogo(logo: ImageBitmap?, maxWidth: Dp, maxHeight: Dp) {
     if (logo == null) {
         PixelTitle(
             text = stringResource(TanksStrings.appName),
@@ -310,9 +331,11 @@ private const val AttractSeed = 2026_0928L
 private const val RoundOverHoldSeconds = 1.5f
 
 /**
- * Shared chrome for the pages off the menu: a lettered title, the page, and Back. Back takes
- * focus as the page opens unless [backTakesFocus] is off because the page has a better
- * first choice of its own (the daily claim, say).
+ * Shared chrome for the pages off the menu: a steel-framed plate set into the same brick wall as
+ * the game and the menu, with a lettered title, the page, and Back. Back takes focus as the page
+ * opens unless [backTakesFocus] is off because the page has a better first choice of its own
+ * (the daily claim, say). The plate stops at a readable width on a wide window instead of
+ * stretching a settings row across a whole monitor.
  */
 @Composable
 internal fun SubScreenScaffold(
@@ -323,26 +346,35 @@ internal fun SubScreenScaffold(
     content: @Composable () -> Unit
 ) {
     val back = rememberInitialFocus(enabled = backTakesFocus)
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MenuBackground)
-            .safeContentPadding()
-            .padding(24.dp)
-            .pixelMenuKeys(),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .pixelMenuKeys()
     ) {
-        PixelTitle(text = title, style = LocalPixelType.current.title)
-        Spacer(modifier = Modifier.height(24.dp))
-        Box(modifier = Modifier.fillMaxWidth().widthIn(max = 640.dp).weight(1f)) { content() }
-        Spacer(modifier = Modifier.height(16.dp))
-        PixelButton(
-            text = stringResource(TanksStrings.commonBack),
-            onClick = onBack,
-            enabled = backEnabled,
-            modifier = Modifier.widthIn(min = 220.dp),
-            material = PixelMaterial.Steel,
-            focusRequester = back
-        )
+        BrickWall(assets = LocalTanksAssets.current, fieldSide = minOf(maxWidth, maxHeight), modifier = Modifier.fillMaxSize(), dim = 0.84f)
+        PixelPanel(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .safeContentPadding()
+                .padding(12.dp)
+                .widthIn(max = 720.dp)
+                .fillMaxWidth()
+                .fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            PixelTitle(text = title, style = LocalPixelType.current.title)
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) { content() }
+            Spacer(modifier = Modifier.height(12.dp))
+            PixelButton(
+                text = stringResource(TanksStrings.commonBack),
+                onClick = onBack,
+                enabled = backEnabled,
+                modifier = Modifier.widthIn(min = 220.dp),
+                material = PixelMaterial.Steel,
+                focusRequester = back
+            )
+        }
     }
 }

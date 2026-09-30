@@ -188,8 +188,9 @@ async function shoot(label) {
  * freshly loaded menu with New game focused, so the tab counts below are counted from there, in
  * build order, and only change when a screen gains or loses a control ahead of the target.
  *
- * A step is a key from capture.js's KEYS, "run" to start stage one as `shoot` does, or
- * "shot:<name>" to save the screen.
+ * A step is a key from capture.js's KEYS, "run" to start stage one as `shoot` does,
+ * "calendar:<days>" to reload the menu with the calendar that many days off (virtual-clock.js),
+ * or "shot:<name>" to save the screen.
  */
 const TOUR = {
     daily: ["tab", "tab", "enter", "shot:daily"],
@@ -197,7 +198,11 @@ const TOUR = {
     records: ["tab", "tab", "tab", "tab", "enter", "shot:records", "tab", "enter", "shot:records-nickname"],
     settings: ["tab", "tab", "tab", "tab", "tab", "enter", "shot:settings", "tab", "enter", "shot:settings-reset"],
     about: ["tab", "tab", "tab", "tab", "tab", "tab", "enter", "shot:about"],
-    stages: ["run", "pause", "tab", "tab", "enter", "shot:stages"]
+    stages: ["run", "pause", "tab", "tab", "enter", "shot:stages"],
+    // The daily reward's other two states. These change the save, so they run last: claimed,
+    // and a clock set back behind the day the save last saw.
+    "daily-claimed": ["tab", "tab", "enter", "enter", "shot:daily-claimed"],
+    "daily-behind": ["calendar:-2", "tab", "tab", "enter", "shot:daily-behind"]
 };
 
 async function tour(label) {
@@ -217,6 +222,7 @@ async function tour(label) {
             for (const route of routes) {
                 const steps = TOUR[route];
                 if (!steps) throw new Error(`no tour route ${route}; expected one of ${Object.keys(TOUR).join(", ")}`);
+                await session.evaluate(`sessionStorage.removeItem("__ironroostCalendarShiftDays")`, false);
                 await session.openMenu({ seed: 1 });
                 await session.evaluate(`ironroostCapture.idle(${MENU_SETTLE_FRAMES})`);
                 for (const step of steps) {
@@ -228,6 +234,11 @@ async function tour(label) {
                         const file = path.join(dir, `${format}-${step.slice(5)}.png`);
                         fs.writeFileSync(file, Buffer.from(data, "base64"));
                         console.log(path.relative(process.cwd(), file));
+                    } else if (step.startsWith("calendar:")) {
+                        const days = Number(step.slice(9));
+                        await session.evaluate(`sessionStorage.setItem("__ironroostCalendarShiftDays", "${days}")`, false);
+                        await session.openMenu({ seed: 1 });
+                        await session.evaluate(`ironroostCapture.idle(${MENU_SETTLE_FRAMES})`);
                     } else if (step === "run") {
                         await session.evaluate(`ironroostCapture.begin("campaign")`, false);
                         for (let idled = 0; !(await session.evaluate("ironroostCapture.beginState", false)).done; idled += 15) {

@@ -103,6 +103,9 @@ a quarter of an hour — good for checking a screen, not for the shots that get 
 
 The page's calendar reads 1 January 2026 from its first script on (`virtual-clock.js`), not only once
 the clock is held, so the daily reward is always on its first claimable day in these shots.
+The tour's last two routes change the save and so run last: `daily-claimed` claims the reward,
+and `daily-behind` reloads with the calendar two days back (a `calendar:-2` step, kept in the
+tab's `sessionStorage`) so the reward shows its "clock is behind" state.
 
 ### Why it is built this way
 

@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
+import com.aectann.battlecity.engine.TanksUpgrade
 import kotlin.math.floor
 
 /**
@@ -217,6 +218,95 @@ internal object PixelIcons {
         "##..",
         "#..."
     )
+
+    // The endless upgrades, one mark each, on the pick cards and in the HUD's build list.
+
+    val RapidFire = PixelIcon(
+        "....##",
+        "...##.",
+        "..##..",
+        ".#####",
+        "...##.",
+        "..##..",
+        ".##...",
+        ".#...."
+    )
+    val TwinShot = PixelIcon(
+        ".#...#.",
+        "###.###",
+        "###.###",
+        "###.###",
+        "###.###",
+        ".......",
+        "###.###"
+    )
+    val Armor = PixelIcon(
+        "#######",
+        "#######",
+        "#######",
+        "#######",
+        ".#####.",
+        "..###..",
+        "...#..."
+    )
+    val Ricochet = PixelIcon(
+        "#.......###",
+        ".#.......##",
+        "..#.....#.#",
+        "...#...#...",
+        "....#.#....",
+        ".....#.....",
+        "###########"
+    )
+    val Treads = PixelIcon(
+        "#...#...",
+        "##..##..",
+        ".##..##.",
+        "..##..##",
+        ".##..##.",
+        "##..##..",
+        "#...#..."
+    )
+    val Piercing = PixelIcon(
+        "...#...",
+        "..###..",
+        ".#####.",
+        "...#...",
+        "##.#.##",
+        "##...##",
+        "##.#.##",
+        "...#..."
+    )
+    val Bulwark = PixelIcon(
+        "#.#.#.#",
+        "#######",
+        "#######",
+        "##...##",
+        "##...##",
+        "#######"
+    )
+
+    /** A life, as the bonus token on the board shows it. */
+    val Salvage = PixelIcon(
+        ".##.##.",
+        "#######",
+        "#######",
+        "#######",
+        ".#####.",
+        "..###..",
+        "...#..."
+    )
+
+    fun upgrade(upgrade: TanksUpgrade): PixelIcon = when (upgrade) {
+        TanksUpgrade.RapidFire -> RapidFire
+        TanksUpgrade.TwinShot -> TwinShot
+        TanksUpgrade.Armor -> Armor
+        TanksUpgrade.Ricochet -> Ricochet
+        TanksUpgrade.Treads -> Treads
+        TanksUpgrade.Piercing -> Piercing
+        TanksUpgrade.Bulwark -> Bulwark
+        TanksUpgrade.Salvage -> Salvage
+    }
 }
 
 /**

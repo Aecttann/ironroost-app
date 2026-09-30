@@ -44,7 +44,7 @@
     <string name="settings_reset_question">모든 스테이지를 다시 잠그고 처음부터 시작할까요?</string>
     <string name="settings_reset_done">진행 상황을 초기화했습니다</string>
     <string name="about_title">게임 정보</string>
-    <string name="about_body">1980년대 콘솔 아케이드의 감성을 담은 오리지널 탱크 게임입니다. 모든 그래픽과 사운드, 35개 스테이지는 이 프로젝트를 위해 제작되었으며 다른 게임에서 가져온 것은 없습니다.</string>
+    <string name="about_body">1980년대 콘솔 아케이드의 감성을 담은 오리지널 탱크 게임입니다. 그래픽과 효과음, 35개 스테이지는 모두 이 프로젝트를 위해 제작되었으며 다른 게임에서 가져온 것은 없습니다. 음악과 글꼴의 저작자는 아래에 있습니다.</string>
     <string name="about_stages">%1$d 스테이지</string>
     <string name="about_version">버전 %1$s</string>
     <string name="about_credits_title">크레딧</string>

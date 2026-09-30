@@ -44,7 +44,7 @@
     <string name="settings_reset_question">Alle Level wieder sperren und neu anfangen?</string>
     <string name="settings_reset_done">Fortschritt zurückgesetzt</string>
     <string name="about_title">Über das Spiel</string>
-    <string name="about_body">Ein eigenständiges Panzerspiel im Geist der Konsolen-Arcades der 1980er. Alle Grafiken, Klänge und 35 Level wurden für dieses Projekt erstellt — nichts stammt aus einem anderen Spiel.</string>
+    <string name="about_body">Ein eigenständiges Panzerspiel im Geist der Konsolen-Arcades der 1980er. Grafiken, Soundeffekte und alle 35 Level wurden für dieses Projekt erstellt; nichts stammt aus einem anderen Spiel. Musik und Schrift sind unten genannt.</string>
     <string name="about_stages">%1$d Level</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_credits_title">Mitwirkende</string>

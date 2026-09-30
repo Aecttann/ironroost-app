@@ -187,10 +187,11 @@ fun DailyRewardScreen(
 @Composable
 private fun WeekStrip(currentCycleDay: Int, claimable: TanksDailyAvailability) {
     val type = LocalPixelType.current
-    // Seven cells share whatever width there is, up to 44 dp each: at 360 dp the fixed cells ran
-    // off the screen and cut the seventh day in half.
+    // Seven cells share whatever width there is, up to 60 dp each: at 360 dp the fixed cells ran
+    // off the screen and cut the seventh day in half, and on the framed page of a wide window the
+    // week should still read as the main thing on it.
     Row(
-        modifier = Modifier.widthIn(max = 44.dp * TanksDailyRewards.CycleLength + 6.dp * (TanksDailyRewards.CycleLength - 1)).fillMaxWidth(),
+        modifier = Modifier.widthIn(max = 60.dp * TanksDailyRewards.CycleLength + 6.dp * (TanksDailyRewards.CycleLength - 1)).fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         (1..TanksDailyRewards.CycleLength).forEach { day ->

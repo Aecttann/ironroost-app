@@ -15,7 +15,7 @@ game archive.
 - **Font** — Ironroost Pixel, derived from Pixelify Sans under the SIL Open Font License
   (`docs/fonts/`).
 - **Audio** — the effects are original synthesised WAVs generated for this project. The menu
-  and battle music is from "5 Action Chiptunes" by Juhani Junkala, released under CC0 and
+  and battle music is from "Retro Game Music Pack" by Juhani Junkala, released under CC0 and
   credited on the About screen.
 - **Level data** (`data/levels/prototype_13x13/`) — all 35 stage layouts are generated
   procedurally for this project from an original set of layout families, then validated

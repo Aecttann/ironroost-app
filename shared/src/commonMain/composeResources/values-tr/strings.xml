@@ -44,7 +44,7 @@
     <string name="settings_reset_question">Tüm bölümler yeniden kilitlenip baştan başlanacak mı?</string>
     <string name="settings_reset_done">İlerleme sıfırlandı</string>
     <string name="about_title">Hakkında</string>
-    <string name="about_body">1980\'lerin konsol atari oyunları ruhunda özgün bir tank oyunu. Tüm grafikler, sesler ve 35 bölüm bu proje için hazırlandı — hiçbiri başka bir oyundan alınmadı.</string>
+    <string name="about_body">1980\'lerin konsol atari oyunları ruhunda özgün bir tank oyunu. Grafikler, ses efektleri ve 35 bölümün tamamı bu proje için hazırlandı; hiçbiri başka bir oyundan alınmadı. Müzik ve yazı tipinin sahipleri aşağıda.</string>
     <string name="about_stages">%1$d bölüm</string>
     <string name="about_version">Sürüm %1$s</string>
     <string name="about_credits_title">Emeği geçenler</string>

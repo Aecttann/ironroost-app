@@ -25,8 +25,9 @@ fun AboutScreen(
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
         ) {
-            PixelTitle(text = stringResource(TanksStrings.appName))
-            Spacer(modifier = Modifier.height(12.dp))
+            // The logotype itself, as on the menu, rather than the name set in type.
+            MenuLogo(logo = LocalTanksAssets.current?.logo(), maxWidth = 380.dp, maxHeight = 72.dp)
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = stringResource(TanksStrings.aboutBody),
                 color = Color.White

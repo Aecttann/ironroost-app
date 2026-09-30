@@ -44,7 +44,7 @@
     <string name="settings_reset_question">Заблокувати всі рівні й почати спочатку?</string>
     <string name="settings_reset_done">Прогрес скинуто</string>
     <string name="about_title">Про гру</string>
-    <string name="about_body">Оригінальна гра про танки в дусі консольних аркад 1980-х. Уся графіка, звуки й 35 карт створені для цього проєкту — нічого не взято з інших ігор.</string>
+    <string name="about_body">Оригінальна гра про танки в дусі консольних аркад 1980-х. Графіку, звукові ефекти й усі 35 карт створено для цього проєкту, нічого не взято з інших ігор. Автори музики й шрифту — нижче.</string>
     <string name="about_stages">%1$d рівнів</string>
     <string name="about_version">Версія %1$s</string>
     <string name="about_credits_title">Подяки</string>

@@ -44,7 +44,7 @@
     <string name="settings_reset_question">Lock every stage again and start over?</string>
     <string name="settings_reset_done">Progress reset</string>
     <string name="about_title">About</string>
-    <string name="about_body">An original tank game in the spirit of 1980s console arcades. All artwork, sounds and 35 stage layouts were created for this project — nothing is taken from another game.</string>
+    <string name="about_body">An original tank game in the spirit of 1980s console arcades. The artwork, sound effects and all 35 stages were made for this project, and nothing is taken from another game. The music and the font are credited below.</string>
     <string name="about_stages">%1$d stages</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_credits_title">Credits</string>

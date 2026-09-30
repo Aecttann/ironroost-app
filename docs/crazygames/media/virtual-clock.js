@@ -42,7 +42,13 @@
 
     // Where held time starts, so two sessions agree on the clock's reading as well as its rate.
     const HELD_ORIGIN_MS = 1_000_000;
-    const HELD_EPOCH_MS = Date.UTC(2026, 0, 1);
+    // A tour can move the calendar a few days either way, for the daily reward's states: the shift
+    // sits in this tab's sessionStorage, so it survives the reload that makes the game see it.
+    const calendarShiftDays = (() => {
+        try { return Number(sessionStorage.getItem("__ironroostCalendarShiftDays")) || 0; }
+        catch (_) { return 0; }
+    })();
+    const HELD_EPOCH_MS = Date.UTC(2026, 0, 1) + calendarShiftDays * 86_400_000;
 
     let now = real.performanceNow();
     // The calendar is fixed from the first script on, not only once the clock is held. The game

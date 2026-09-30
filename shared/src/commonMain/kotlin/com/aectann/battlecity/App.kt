@@ -30,6 +30,7 @@ import com.aectann.battlecity.ui.AboutScreen
 import com.aectann.battlecity.ui.CollectionScreen
 import com.aectann.battlecity.ui.DailyRewardScreen
 import com.aectann.battlecity.ui.LeaderboardScreen
+import com.aectann.battlecity.ui.LocalTanksAssets
 import com.aectann.battlecity.ui.LocalTanksSound
 import com.aectann.battlecity.ui.MenuScreen
 import com.aectann.battlecity.ui.PixelTheme
@@ -217,7 +218,7 @@ fun App(
             )
         }
 
-        CompositionLocalProvider(LocalTanksSound provides sound) {
+        CompositionLocalProvider(LocalTanksSound provides sound, LocalTanksAssets provides assets) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) {
                     when (destination) {

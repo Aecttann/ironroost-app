@@ -44,7 +44,7 @@
     <string name="settings_reset_question">सभी चरण फिर से बंद कर दें और शुरू से खेलें?</string>
     <string name="settings_reset_done">प्रगति रीसेट हो गई</string>
     <string name="about_title">खेल के बारे में</string>
-    <string name="about_body">1980 के दशक के कंसोल आर्केड की भावना वाला एक मौलिक टैंक गेम। सारी कलाकृति, ध्वनियाँ और 35 चरण इसी प्रोजेक्ट के लिए बनाए गए हैं — कुछ भी किसी अन्य गेम से नहीं लिया गया।</string>
+    <string name="about_body">1980 के दशक के कंसोल आर्केड की भावना वाला एक मौलिक टैंक गेम। कलाकृति, ध्वनि प्रभाव और सभी 35 चरण इसी प्रोजेक्ट के लिए बनाए गए हैं — कुछ भी किसी अन्य गेम से नहीं लिया गया। संगीत और फ़ॉन्ट का श्रेय नीचे है।</string>
     <string name="about_stages">%1$d चरण</string>
     <string name="about_version">संस्करण %1$s</string>
     <string name="about_credits_title">श्रेय</string>

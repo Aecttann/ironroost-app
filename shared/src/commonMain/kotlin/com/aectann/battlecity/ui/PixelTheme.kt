@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import battlecity.shared.generated.resources.Res
 import battlecity.shared.generated.resources.ironroost_pixel
+import com.aectann.battlecity.TanksAssets
 import org.jetbrains.compose.resources.Font
 import kotlin.math.floor
 
@@ -133,6 +135,12 @@ internal val LocalPixelInputMode = staticCompositionLocalOf { PixelInputMode() }
  * Null outside [App]: a host that embeds only the game screen gets one owned by that screen.
  */
 internal val LocalTanksSound = staticCompositionLocalOf<TanksSoundBank?> { null }
+
+/**
+ * The app's sprite set, for screens that only want it for scenery — the brick wall behind the
+ * pages off the menu. Null until it has loaded, and outside [App]; the wall falls back to a fill.
+ */
+internal val LocalTanksAssets = compositionLocalOf<TanksAssets?> { null }
 
 /**
  * Everything the pixel UI reads from above: the type scale — handed to Material too, so a bare

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -448,11 +449,15 @@ private fun ColumnScope.LoadoutLines(state: BattleCityRenderState) {
     if (taken.isEmpty()) return
     Spacer(Modifier.height(12.dp))
     taken.forEach { (upgrade, level) ->
-        Text(
-            text = stringResource(TanksStrings.upgradeName(upgrade)) + " " + level,
-            color = GoldLight,
-            style = LocalPixelType.current.caption.shadowed()
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+            PixelIconImage(icon = PixelIcons.upgrade(upgrade), color = GoldLight)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = stringResource(TanksStrings.upgradeName(upgrade)) + " " + level,
+                color = GoldLight,
+                style = LocalPixelType.current.caption.shadowed()
+            )
+        }
     }
 }
 
