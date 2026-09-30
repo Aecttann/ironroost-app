@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -66,6 +67,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -324,12 +326,49 @@ internal fun PixelButton(
         minHeight = minHeight,
         badge = badge
     ) { color ->
+        WordSafeText(
+            text = text,
+            color = color,
+            style = if (color == Ink) textStyle else textStyle.shadowed()
+        )
+    }
+}
+
+/**
+ * Centred text that may wrap between words but never inside one: when the longest word is wider
+ * than the room there is, the whole text is set a size smaller instead. A long word in a narrow
+ * button — "Нескінченний" on a records tab, "Налаштування" under a menu icon, "Einstellungen" —
+ * had been cut in two.
+ */
+@Composable
+internal fun WordSafeText(
+    text: String,
+    color: Color,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE
+) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         Text(
             text = text,
             color = color,
-            style = if (color == Ink) textStyle else textStyle.shadowed(),
-            textAlign = TextAlign.Center
+            style = fitLongestWord(text, style, maxWidth),
+            textAlign = TextAlign.Center,
+            maxLines = maxLines
         )
+    }
+}
+
+/** [style], scaled down just enough for the longest word of [text] to fit [width] on one line. */
+@Composable
+private fun fitLongestWord(text: String, style: TextStyle, width: Dp): TextStyle {
+    val measurer = rememberTextMeasurer()
+    val widthPx = with(LocalDensity.current) { width.toPx() }
+    return remember(text, style, widthPx) {
+        if (widthPx.isInfinite()) return@remember style
+        val longest = text.split(' ', '\n').filter { it.isNotEmpty() }
+            .maxOfOrNull { measurer.measure(it, style, softWrap = false, maxLines = 1).size.width } ?: 0
+        if (longest <= widthPx) style else style.copy(fontSize = style.fontSize * (widthPx / longest * 0.97f))
     }
 }
 

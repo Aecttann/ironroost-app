@@ -37,8 +37,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -207,27 +205,13 @@ private fun MenuIcon(
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         PixelIconButton(icon = icon, label = label, onClick = onClick, material = material, size = 52.dp, badge = badge)
         Spacer(Modifier.height(4.dp))
-        BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            Text(
-                text = label,
-                color = Color.White,
-                style = fitLongestWord(label, LocalPixelType.current.caption.shadowed(), maxWidth),
-                textAlign = TextAlign.Center,
-                maxLines = 2
-            )
-        }
-    }
-}
-
-/** [style], scaled down just enough for the longest word of [text] to fit [width] on one line. */
-@Composable
-private fun fitLongestWord(text: String, style: TextStyle, width: Dp): TextStyle {
-    val measurer = rememberTextMeasurer()
-    val widthPx = with(LocalDensity.current) { width.toPx() }
-    return remember(text, style, widthPx) {
-        val longest = text.split(' ', '\n').filter { it.isNotEmpty() }
-            .maxOfOrNull { measurer.measure(it, style, softWrap = false, maxLines = 1).size.width } ?: 0
-        if (longest <= widthPx) style else style.copy(fontSize = style.fontSize * (widthPx / longest * 0.97f))
+        WordSafeText(
+            text = label,
+            color = Color.White,
+            style = LocalPixelType.current.caption.shadowed(),
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 2
+        )
     }
 }
 

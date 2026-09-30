@@ -2,7 +2,8 @@ package com.aectann.battlecity.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +15,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -24,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.aectann.battlecity.TanksAssets
 import com.aectann.battlecity.TanksStrings
 import org.jetbrains.compose.resources.stringResource
 
@@ -41,50 +45,67 @@ fun AdsAgeScreen(
         onAgeSelected(it)
     }
     val type = LocalPixelType.current
-    Box(
-        Modifier.fillMaxSize().background(MenuBackground).safeContentPadding(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            Modifier.widthIn(max = 420.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+    // The first screen an Android player sees, so it is set like every other page: a framed plate
+    // over the fortress wall. It comes before App, which owns the sprite set, so it loads its own
+    // copy; TanksAssets caches it, and App picks up the same one.
+    var assets by remember { mutableStateOf<TanksAssets?>(null) }
+    LaunchedEffect(Unit) { assets = runCatching { TanksAssets.load() }.getOrNull() }
+    BoxWithConstraints(Modifier.fillMaxSize().background(MenuBackground)) {
+        BrickWall(assets = assets, fieldSide = minOf(maxWidth, maxHeight), modifier = Modifier.fillMaxSize(), dim = 0.84f)
+        PixelPanel(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .safeContentPadding()
+                .padding(16.dp)
+                .widthIn(max = 460.dp)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            PixelTitle(stringResource(TanksStrings.adsAgeTitle), color = Color.White)
-            Text(stringResource(TanksStrings.adsAgePrompt), color = Color.White)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(stringResource(TanksStrings.adsAgeLabel), color = MutedText, style = type.caption)
-                PixelTextField(
-                    value = enteredAge,
-                    onValueChange = { value ->
-                        if (value.length <= 3 && value.all { it in '0'..'9' }) {
-                            enteredAge = value
-                            invalid = false
-                        }
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                PixelTitle(
+                    stringResource(TanksStrings.adsAgeTitle),
+                    style = type.title,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Text(stringResource(TanksStrings.adsAgePrompt), color = Color.White)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(TanksStrings.adsAgeLabel), color = MutedText, style = type.caption)
+                    PixelTextField(
+                        value = enteredAge,
+                        onValueChange = { value ->
+                            if (value.length <= 3 && value.all { it in '0'..'9' }) {
+                                enteredAge = value
+                                invalid = false
+                            }
+                        },
+                        enabled = !isSaving,
+                        isError = invalid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (invalid) Text(stringResource(TanksStrings.adsAgeInvalid), color = BrickLight)
+                if (saveFailed) Text(stringResource(TanksStrings.adsAgeSaveFailed), color = BrickLight)
+                PixelButton(
+                    text = stringResource(TanksStrings.adsAgeContinue),
+                    onClick = {
+                        val age = enteredAge.toIntOrNull()
+                        if (age == null || age !in 0..130) invalid = true else selectAge(age)
                     },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
+                PixelButton(
+                    text = stringResource(TanksStrings.adsAgeSkip),
+                    onClick = { selectAge(null) },
+                    modifier = Modifier.fillMaxWidth(),
                     enabled = !isSaving,
-                    isError = invalid,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    material = PixelMaterial.Steel
                 )
             }
-            if (invalid) Text(stringResource(TanksStrings.adsAgeInvalid), color = BrickLight)
-            if (saveFailed) Text(stringResource(TanksStrings.adsAgeSaveFailed), color = BrickLight)
-            PixelButton(
-                text = stringResource(TanksStrings.adsAgeContinue),
-                onClick = {
-                    val age = enteredAge.toIntOrNull()
-                    if (age == null || age !in 0..130) invalid = true else selectAge(age)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving
-            )
-            PixelButton(
-                text = stringResource(TanksStrings.adsAgeSkip),
-                onClick = { selectAge(null) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving,
-                material = PixelMaterial.Steel
-            )
         }
     }
 }
