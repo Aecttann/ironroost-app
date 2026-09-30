@@ -31,13 +31,12 @@
 const GRAPHICS = "/shared/src/commonMain/composeResources/files/battle_city/graphics";
 
 const SPRITES = {
-    brick: `${GRAPHICS}/tiles/brick_damage_0.png`,
-    brickHit: `${GRAPHICS}/tiles/brick_damage_1.png`,
-    brickHalf: `${GRAPHICS}/tiles/brick_damage_2.png`,
+    brick: `${GRAPHICS}/tiles/brick.png`,
     steel: `${GRAPHICS}/tiles/steel.png`,
     water: `${GRAPHICS}/tiles/water_0.png`,
     forest: `${GRAPHICS}/tiles/forest_0.png`,
-    base: `${GRAPHICS}/ui/base_eagle_alive.png`,
+    base: `${GRAPHICS}/ui/base_nest_alive.png`,
+    logo: `${GRAPHICS}/ui/logo.png`,
     player: `${GRAPHICS}/tanks/player/green_level3_up.png`,
     enemyBasic: `${GRAPHICS}/tanks/enemy/basic_down.png`,
     enemyFast: `${GRAPHICS}/tanks/enemy/fast_down.png`,
@@ -51,7 +50,7 @@ const SPRITES = {
 };
 
 // 21 columns by 17 rows, symmetric about column 10, with a lane running straight down the middle
-// to the eagle. Every format frames that lane, so the player always reads as defending the base.
+// to the nest. Every format frames that lane, so the player always reads as defending the base.
 const BOARD = [
     "bbb..bb..bbb..bb..bbb",
     "bbb..bb..bbb..bb..bbb",
@@ -75,15 +74,17 @@ const BOARD = [
 
 const TILE_SPRITE = { b: "brick", s: "steel", w: "water", f: "forest", E: "base" };
 
-// Shell damage along the lane: the wall the fight came through is not intact any more.
+// Shell damage along the lane: the wall the fight came through is not intact any more. Each value
+// is the quarters still standing, the way the game draws a hit brick: 1 top left, 2 top right,
+// 4 bottom left, 8 bottom right.
 const BATTLE_DAMAGE = {
-    "8,4": "brickHit",
-    "12,3": "brickHalf",
-    "7,8": "brickHit",
-    "13,7": "brickHalf",
-    "4,11": "brickHit",
-    "17,10": "brickHalf",
-    "9,15": "brickHit"
+    "8,4": 0b1110,
+    "12,3": 0b1100,
+    "7,8": 0b0111,
+    "13,7": 0b0011,
+    "4,11": 0b1101,
+    "17,10": 0b1100,
+    "9,15": 0b1011
 };
 
 const COLS = BOARD[0].length;
@@ -122,7 +123,7 @@ const LABEL_ZONES = {
 const LAYOUTS = {
     landscape: {
         width: 1920, height: 1080, tile: 96, originCol: 0.5, originRow: 6.75,
-        titleSize: 122, titleX: 0.7, titleY: 0.13,
+        titleScale: 4, titleX: 0.7, titleY: 0.13,
         actors: [
             { sprite: "enemyFast", col: 3.4, row: 9.6, size: 2.0 },
             { sprite: "enemyBasic", col: 8.9, row: 9.4, size: 2.1 },
@@ -138,7 +139,7 @@ const LAYOUTS = {
     },
     portrait: {
         width: 800, height: 1200, tile: 80, originCol: 5, originRow: 3,
-        titleSize: 72, titleX: 0.5, titleY: 0.15,
+        titleScale: 3, titleX: 0.5, titleY: 0.15,
         actors: [
             { sprite: "enemyFast", col: 6.1, row: 6.1, size: 2.0 },
             { sprite: "enemyBonus", col: 12.1, row: 6.2, size: 2.0 },
@@ -156,7 +157,7 @@ const LAYOUTS = {
     // down, and at the landscape's distance the enemy line would sit inside it.
     square: {
         width: 800, height: 800, tile: 70, originCol: 4.79, originRow: 5.8,
-        titleSize: 62, titleX: 0.68, titleY: 0.1,
+        titleScale: 2, titleX: 0.669, titleY: 0.1,
         actors: [
             { sprite: "enemyFast", col: 5.9, row: 9.3, size: 2.0 },
             { sprite: "enemyBasic", col: 8.9, row: 9.1, size: 2.1 },
@@ -193,7 +194,7 @@ function labelZoneProblems(name, layout, titleBox) {
 }
 
 function drawCover(canvas, layout) {
-    const { width, height, tile, originCol, originRow, titleSize, titleX, titleY, actors, muzzle } = layout;
+    const { width, height, tile, originCol, originRow, titleScale, titleX, titleY, actors, muzzle } = layout;
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
@@ -210,9 +211,16 @@ function drawCover(canvas, layout) {
         for (let col = 0; col < COLS; col++) {
             const base = TILE_SPRITE[BOARD[row][col]];
             if (!base) continue;
-            const sprite = BATTLE_DAMAGE[`${col},${row}`] ?? base;
             const [x, y] = at(col, row);
-            ctx.drawImage(images[sprite], x, y, tile, tile);
+            const quarters = BATTLE_DAMAGE[`${col},${row}`];
+            if (quarters === undefined) {
+                ctx.drawImage(images[base], x, y, tile, tile);
+                continue;
+            }
+            const half = tile / 2;
+            [[1, 0, 0], [2, 1, 0], [4, 0, 1], [8, 1, 1]].forEach(([bit, qx, qy]) => {
+                if (quarters & bit) ctx.drawImage(images[base], qx * 8, qy * 8, 8, 8, x + qx * half, y + qy * half, half, half);
+            });
         }
     }
 
@@ -248,49 +256,29 @@ function drawCover(canvas, layout) {
     ctx.fillStyle = band;
     ctx.fillRect(0, 0, width, height * 0.36);
 
-    return drawTitle(ctx, width * titleX, height * titleY, titleSize);
+    return drawTitle(ctx, width * titleX, height * titleY, titleScale);
 }
 
-/** Draws the title centred on [x] and returns the box its ink and outline cover. */
-function drawTitle(ctx, x, baseline, size) {
-    const text = "IRONROOST";
-    const spacing = Math.round(size * 0.07);
-    ctx.font = `900 ${size}px "Arial Black", "Segoe UI", system-ui, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.letterSpacing = `${spacing}px`;
-
-    // Canvas adds the tracking after the last letter too, so centred text sits half a gap left.
-    const centre = x + spacing / 2;
+/**
+ * Draws the game's own logotype (docs/art/logo.js) centred on [x], [y] at a whole multiple of its
+ * pixels, over a soft dark halo so it reads on the busy board, and returns the box it covers.
+ */
+function drawTitle(ctx, x, y, scale) {
+    const logo = images.logo;
+    const width = logo.width * scale;
+    const height = logo.height * scale;
+    const left = Math.round(x - width / 2);
+    const top = Math.round(y - height / 2);
 
     ctx.save();
-    ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-    ctx.shadowBlur = size * 0.34;
-    ctx.shadowOffsetY = size * 0.07;
-    ctx.fillStyle = "#0a0d12";
-    ctx.fillText(text, centre, baseline);
+    ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+    ctx.shadowBlur = height * 0.5;
+    ctx.shadowOffsetY = height * 0.08;
+    ctx.drawImage(logo, left, top, width, height);
     ctx.restore();
+    ctx.drawImage(logo, left, top, width, height);
 
-    ctx.lineWidth = size * 0.11;
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#0a0d12";
-    ctx.strokeText(text, centre, baseline);
-
-    const ink = ctx.createLinearGradient(0, baseline - size * 0.62, 0, baseline + size * 0.62);
-    ink.addColorStop(0, "#ffe09a");
-    ink.addColorStop(0.5, "#e0a03c");
-    ink.addColorStop(1, "#b8761c");
-    ctx.fillStyle = ink;
-    ctx.fillText(text, centre, baseline);
-
-    const metrics = ctx.measureText(text);
-    const outline = ctx.lineWidth / 2;
-    return {
-        x: centre - metrics.actualBoundingBoxLeft - outline,
-        y: baseline - metrics.actualBoundingBoxAscent - outline,
-        width: metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight + outline * 2,
-        height: metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + outline * 2
-    };
+    return { x: left, y: top, width, height };
 }
 
 /**

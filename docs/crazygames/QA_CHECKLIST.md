@@ -31,18 +31,22 @@ Test both keyboard and pointer/touch input at these viewport sizes:
 - 800×450 and 1080×607 with touch emulation
 - at least one narrow portrait viewport
 
-For each representative layout verify New game reaches playable stage 1 in one click, movement,
+For each representative layout verify PLAY reaches playable stage 1 in one click, movement,
 fire, pause/resume, sound, restart, stage summary, game over, settings, About, Continue and
-progress reset. On the short 16:9 sizes confirm all menu actions are visible in the three-column
-layout; on portrait confirm the menu scrolls. Confirm arrow/Space keys do not scroll the iframe
+progress reset. On the short 16:9 sizes confirm the logo, PLAY, Endless and the row of icons are
+all visible without scrolling; on portrait confirm the menu scrolls if it has to.
+`node docs/crazygames/media/screenshots.js shoot qa --formats 821x462,1216x684,800x450t`
+photographs any size (WIDTHxHEIGHT, a trailing t for touch) for a first look. Confirm arrow/Space keys do not scroll the iframe
 and browser focus loss does not leave looping audio behind.
 
 Run the new retention paths as well:
 
 - start solo Endless, clear a wave, choose an upgrade and verify the HUD reflects its level;
 - finish an Endless run and verify its wave/score appears only on the Endless records tab;
-- confirm the first stage card of a visit holds long enough to read the controls, that a tap or
-  any key dismisses it at once, and that later cards are back to the short hold;
+- on a fresh profile the page opens straight in stage one, not the menu, with the keys drawn
+  over the player's tank (or the stick and FIRE blinking gold on touch); each group disappears
+  once used, and a reload after moving and firing opens on the menu;
+- a stage card holds for a moment and a tap or any key dismisses it at once;
 - select two players and verify P1 uses WASD + Space while P2 independently uses arrows + Enter;
 - with touch emulation on and no keyboard, verify the two-player option is disabled and explains
   why, and that New game and Endless both start a one-tank run. Then press any key and confirm the

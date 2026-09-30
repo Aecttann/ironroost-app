@@ -78,31 +78,22 @@
     };
 
     /*
-     * Where the menu entries sit, as fractions of the viewport.
+     * The routes reach their modes by the menu's own keys, the way a keyboard player would, not
+     * by clicking measured points: the menu has been redrawn more than once, and every redraw
+     * moved the points. On a fresh menu PLAY holds focus. The first arrow only shows the cursor
+     * there; the next moves it. Up from PLAY is the seat choice (1 player, 2 players); down from
+     * PLAY is Endless. On the pause overlay, Tab twice reaches Stages, whose dialog opens on the
+     * current stage's tile with four tiles a row, so CAMPAIGN_STAGE (6) is one down and one right
+     * of stage one.
      *
-     * Measured against the two capture sizes in record-gameplay.js, not guessed — and not
-     * portable to a third size. The menu lays out in dp, so the same button covers a different
-     * fraction of a different viewport. STALE for 720x1080 since the quality update's phase 1:
-     * a tall window now gets the single-column menu. Re-measure before recording (phase 8).
-     *
-     * The solo campaign needs none of this: startGame() presses Enter on New game, which holds
-     * focus as the menu opens. The co-op routes still click, hence the check in beginRun that the
-     * run we got is the run we asked for.
-     *
-     * `pauseStages` is the Stages button on the pause overlay and `campaignStage` the tile for
-     * CAMPAIGN_STAGE in the stage dialog that opens from it; the dialog lays tiles out four to a
-     * row, so a stage in its first rows is on screen without scrolling.
+     * beginRun still checks the stage the engine actually loaded: a key that went astray would
+     * start a different run that looks almost right on screen.
      */
-    const MENU = {
-        "1280x720": {
-            twoPlayers: [0.559, 0.380], newGame: [0.465, 0.463], endless: [0.465, 0.540],
-            pauseStages: [0.5, 0.535], campaignStage: [0.448, 0.472]
-        },
-        "720x1080": {
-            twoPlayers: [0.557, 0.420], newGame: [0.465, 0.475], endless: [0.465, 0.528],
-            pauseStages: [0.5, 0.523], campaignStage: [0.408, 0.315]
-        }
-    };
+    const PICK_TWO_PLAYERS = ["up", "up", "right", "enter"];
+    const SEATS_TO_ENDLESS = ["down", "down"];
+    const SEATS_TO_PLAY = ["down"];
+    const PAUSE_TO_STAGES = ["tab", "tab", "enter"];
+    const STAGE_ONE_TO_CAMPAIGN_STAGE = ["down", "right"];
 
     /** The stage number the engine loads for an endless run; anything else means a wrong click. */
     const ENDLESS_ARENA = 12;
@@ -221,19 +212,31 @@
         }
     }
 
-    /** Menu coordinates for this viewport, with two players picked, or an error saying why not. */
+    /** Presses each key in turn, giving the UI a quarter of a second after each. */
+    async function pressAll(target, names) {
+        for (const name of names) {
+            key(target, name, "keydown");
+            key(target, name, "keyup");
+            await sleep(250);
+        }
+    }
+
+    /** Two seats picked on the menu, focus left on the seat choice, or an error saying why not. */
     async function pickTwoPlayers(target) {
-        const size = `${innerWidth}x${innerHeight}`;
-        const layout = MENU[size];
-        if (!layout) throw new Error(`no measured menu layout for ${size}; add one to MENU`);
-        // Without a keyboard the menu keeps the two-player button disabled, the click below
-        // does nothing, and the take would quietly be a solo run.
+        // Without a keyboard the menu does not offer the second seat at all, the keys below
+        // would land on something else, and the take would quietly be a solo run.
         if (window.ironroostPortal?.hasPhysicalKeyboard !== true) {
             throw new Error("this browser reports no keyboard, so co-op is not on offer");
         }
-        tapAt(target, layout.twoPlayers);
-        await sleep(250);
-        return layout;
+        await pressAll(target, PICK_TWO_PLAYERS);
+    }
+
+    /** Presses Enter on whatever has focus and waits for the run it starts. */
+    async function enterAndWait(target, what) {
+        const started = gameplayStarted();
+        key(target, "enter", "keydown");
+        key(target, "enter", "keyup");
+        if (!await within(started, 12000)) throw new Error(`${what} never started; a menu key went astray`);
     }
 
     /**
@@ -247,43 +250,28 @@
         const target = await waitForCanvas();
 
         if (mode === "endless-coop") {
-            const layout = await pickTwoPlayers(target);
-            const started = gameplayStarted();
-            tapAt(target, layout.endless);
-            if (!await within(started, 12000)) {
-                throw new Error("the endless run never started; the menu coordinates are stale");
-            }
-            // A mis-click that landed on New game would start the campaign and look almost
-            // right on screen, so the stage the engine actually loaded is checked rather than
-            // assumed.
+            await pickTwoPlayers(target);
+            await pressAll(target, SEATS_TO_ENDLESS);
+            await enterAndWait(target, "the endless run");
+            // A key that landed on PLAY would start the campaign and look almost right on
+            // screen, so the stage the engine actually loaded is checked rather than assumed.
             if (portalEvents.stage !== ENDLESS_ARENA) {
-                throw new Error(
-                    `landed in stage ${portalEvents.stage}, not the endless arena; menu coordinates are stale`
-                );
+                throw new Error(`landed in stage ${portalEvents.stage}, not the endless arena; a menu key went astray`);
             }
         } else if (mode === "campaign-coop") {
             // New game always opens on stage one; the stage list lives on the pause overlay.
-            const layout = await pickTwoPlayers(target);
-            const firstStage = gameplayStarted();
-            tapAt(target, layout.newGame);
-            if (!await within(firstStage, 12000)) {
-                throw new Error("the campaign never started; the menu coordinates are stale");
-            }
+            await pickTwoPlayers(target);
+            await pressAll(target, SEATS_TO_PLAY);
+            await enterAndWait(target, "the campaign");
             await sleep(500);
-            key(target, "pause", "keydown");
-            key(target, "pause", "keyup");
-            await sleep(600);
-            tapAt(target, layout.pauseStages);
-            await sleep(600);
-            const chosenStage = gameplayStarted();
-            tapAt(target, layout.campaignStage);
-            if (!await within(chosenStage, 12000)) {
-                throw new Error("the chosen stage never started; the pause or stage coordinates are stale");
-            }
+            await pressAll(target, ["pause"]);
+            await sleep(350);
+            await pressAll(target, PAUSE_TO_STAGES);
+            await sleep(350);
+            await pressAll(target, STAGE_ONE_TO_CAMPAIGN_STAGE);
+            await enterAndWait(target, "the chosen stage");
             if (portalEvents.stage !== CAMPAIGN_STAGE) {
-                throw new Error(
-                    `landed in stage ${portalEvents.stage}, not stage ${CAMPAIGN_STAGE}; the stage tile coordinates are stale`
-                );
+                throw new Error(`landed in stage ${portalEvents.stage}, not stage ${CAMPAIGN_STAGE}; a stage-list key went astray`);
             }
         } else if (mode === "campaign") {
             if (!await withoutKeyboard(() => startGame(target))) throw new Error("could not get past the menu");

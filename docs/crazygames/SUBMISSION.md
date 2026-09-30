@@ -13,8 +13,9 @@ page; the portal takes a folder, not an archive. The task rebuilds that folder f
 every run, so nothing from an earlier build can end up in it. It has a root `index.html` and
 only relative references to game files. Do not upload a development webpack build.
 
-The build is roughly 4.7 MB — 156 files, 13.08 MiB raw and 4.64 MiB compressed, well inside
-both the 50 MB Basic ceiling and the 20 MB mobile target. Source maps are not built for the
+The build is roughly 7 MB — 156 files, 15.00 MiB raw and 6.93 MiB compressed (the menu and battle
+music are most of the growth), well inside both the 50 MB Basic ceiling and the 20 MB mobile
+target. Source maps are not built for the
 production bundle, so the Kotlin sources are not shipped to players. Set the version the About
 screen shows with `-PreleaseVersionName=…`; it defaults to `1.0.0`.
 
@@ -23,6 +24,20 @@ screen shows with `-PreleaseVersionName=…`; it defaults to `1.0.0`.
 The five required files are in `docs/crazygames/media/`: three covers and two preview videos,
 built from the game's own sprites and from recordings of real runs of this exact bundle. Sizes,
 durations and the rebuild steps are in that folder's README.
+
+## What changed since the first review
+
+The first submission was declined on overall quality. For the resubmission field, in short:
+
+> Rebuilt the whole presentation. New pixel-art identity: our own tanks, tiles, base (an iron
+> egg in a steel nest), bonuses and effects, drawn for this game. A pixel UI with its own font
+> and logo, an arcade menu with a live battle behind it, a framed board with a side-panel HUD and
+> proper touch controls. Screen shake, debris, score pop-ups and a stage curtain; menu and battle
+> music with separate volume sliders. A first visit starts straight in stage one with the
+> controls shown on the field. A friendlier first stage, and a faster board on low-end phones.
+
+The detailed record, phase by phase with before/after screenshots, is
+`docs/quality-update-plan.md` and `docs/quality/screens/`.
 
 ## Portal fields
 
@@ -46,24 +61,28 @@ durations and the rebuild steps are in that folder's README.
 
 ### Short description
 
-Defend the eagle base through 35 stages or build an unstoppable tank in escalating Endless waves.
+Guard the iron egg in its steel nest through 35 stages, or build an unstoppable tank in Endless waves.
 
 ### Full description
 
-Ironroost is a top-down tank shooter inspired by the classic 8-bit tank games. Enemy tanks roll
-in from the top of the map, and your job is to protect the eagle at the bottom. One hit on the
-eagle ends the game, however many lives you have left.
+Ironroost is a top-down pixel-art tank shooter. A flock of iron crow tanks rolls in from the top
+of the map, and your job is to guard the iron egg in its nest at the bottom. One hit on the egg
+ends the game, however many lives you have left.
+
+Your first visit drops you straight into stage one with the keys drawn next to your tank; they
+fade away as soon as you use them.
 
 The campaign has 35 stages. Brick walls break when you shoot them, but steel only gives way once
 your tank is fully upgraded. Water blocks the road, ice makes you slide, and trees hide anything
-under them. Destroy a flashing tank and it drops a bonus: a helmet that makes you invulnerable
-for ten seconds, a shovel that walls the eagle in with steel, a clock that stops the enemy in its
-tracks, a grenade that destroys every enemy tank on the screen, a star that makes your tank
+under them. Destroy a flashing tank and it drops a bonus: a shield that makes you invulnerable
+for ten seconds, steel plates that wall the nest in, an hourglass that stops the enemy in its
+tracks, a bomb that destroys every enemy tank on the screen, a star that makes your tank
 stronger, and a few others. Every 20,000 points earns an extra life.
 
 Endless mode is a single arena with waves that keep getting tougher. After each wave you pick an
 upgrade: faster reload, a second shell in the air, extra armor, shells that bounce off steel or
-break right through it. How far you get depends a lot on what you take.
+break right through it, a steel wall round the nest, or a spare life. How far you get depends a
+lot on what you take.
 
 Both modes can be played with a friend on the same keyboard. Hit your partner by accident and
 their tank just freezes for a moment instead of blowing up.

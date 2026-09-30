@@ -34,7 +34,8 @@ node docs/crazygames/media/serve.js
 ```
 
 **Covers** — open `http://localhost:8130/docs/crazygames/media/cover.html`, then run `saveAll()`
-in the console. The board layout, the camera each format points at it, and where the tanks stand
+in the console. The title is the game's own logotype (`graphics/ui/logo.png`) at a whole
+multiple of its pixels, and a hit brick is drawn quarter by quarter, as the game draws it. The board layout, the camera each format points at it, and where the tanks stand
 are all at the top of that file, together with `LABEL_ZONES`: the top-left corner the portal
 covers with its NEW / HOT badges, measured off the submission page's crop tool. `saveAll()`
 refuses to write a cover whose title or tanks reach into it; `renderAll({ showZones: true })`
@@ -43,13 +44,15 @@ shades the zones in the preview.
 **Previews** — record each route in both formats, then cut them together:
 
 ```powershell
-node docs/crazygames/media/record-gameplay.js landscape endless-coop 30 --seed 1
+node docs/crazygames/media/record-gameplay.js landscape endless-coop 32 --seed 3
 node docs/crazygames/media/record-gameplay.js landscape campaign-coop 12 --seed 1
 node docs/crazygames/media/build-preview.js landscape endless-coop:20.3-29.8 campaign-coop:2.5-10.5
 ```
 
-Repeat with `portrait` for the other format; the same route and seed give the same run, frame
-for frame, so the two videos show the same fights. `ffmpeg` has to be on the path. If Node is not
+Repeat with `portrait` for the other format. The same route and seed are meant to give the same
+run in both formats, but since the quality update a run is not quite reproducible between a
+`--search` and a recording, or between formats: when a recording loses early, try the next seed
+rather than trusting the search. `ffmpeg` has to be on the path. If Node is not
 installed system-wide, the Kotlin Gradle plugin has already downloaded one:
 `~/.gradle/nodejs/node-*/node.exe`.
 
@@ -60,15 +63,16 @@ named windows of those captures with straight cuts, adds nothing else, and refus
 the portal's twenty seconds.
 
 To find a seed worth recording, `--search 1-12` plays seeds without keeping frames and prints what
-happened in each: a cleared wave, or the run lost and when. Seed 1 is the one shipped; its base
-falls at 30.4 s, which is why the endless window stops at 29.8.
+happened in each: a cleared wave, or the run lost and when. The menu's own animations draw on the
+same dice, so a menu change can turn a good seed bad: since the quality update the endless take
+uses seed 2 (alive past 32 s) and the forest take seed 1.
 
-The routes reach their modes by clicking measured viewport fractions, because the menu is painted
-on a canvas with nothing to query. Those fractions live in `MENU` in `capture.js` and only cover
-the two capture sizes — **a menu change moves them.** `beginRun` checks which stage the engine
-actually loaded and throws rather than recording the wrong mode. The solo `campaign` mode probes
-down the centre column instead; it hides the keyboard from the menu while it does, so the probe
-cannot switch on two players on its way to New game.
+The routes reach their modes by the menu's own keys, the way a keyboard player would: up to the
+seat choice, right and Enter for two players, down to PLAY or Endless; for the forest stage,
+P, Tab twice to Stages, and the arrows to stage six. The key sequences sit at the top of
+`capture.js`. `beginRun` checks which stage the engine actually loaded and throws rather than
+recording the wrong mode. The solo `campaign` mode presses Enter on New game with the keyboard
+hidden from the menu, so it cannot switch on two players on its way.
 
 ## Screenshots for before/after
 

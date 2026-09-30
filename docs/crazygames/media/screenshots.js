@@ -33,7 +33,7 @@
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const { launch, FORMATS, FPS } = require("./chrome-session");
+const { launch, FORMATS, formatFor, FPS } = require("./chrome-session");
 
 const SCREENS = path.resolve(__dirname, "..", "..", "quality", "screens");
 
@@ -103,7 +103,7 @@ async function shoot(label) {
     };
 
     for (const format of formats) {
-        if (!FORMATS[format]) throw new Error(`unknown format ${format}`);
+        if (!formatFor(format)) throw new Error(`unknown format ${format}`);
         const dist = option("--dist", "productionExecutable");
 
         // A stranger gets a profile of their own, with nothing in it.
@@ -116,7 +116,7 @@ async function shoot(label) {
                 await stranger.evaluate(`ironroostCapture.idle(${FIRST_VISIT_FRAMES})`);
                 await saveFrom(stranger, format, "first-visit");
             } finally {
-                stranger.close();
+                await stranger.close();
             }
         }
         if (views.every(view => view === "first-visit")) continue;
@@ -177,7 +177,7 @@ async function shoot(label) {
             await session.evaluate(`ironroostCapture.idle(${PAUSE_SETTLE_FRAMES})`);
             await save("pause");
         } finally {
-            session.close();
+            await session.close();
         }
     }
 }
@@ -254,7 +254,7 @@ async function tour(label) {
                 }
             }
         } finally {
-            session.close();
+            await session.close();
         }
     }
 }

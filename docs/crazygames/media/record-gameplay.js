@@ -15,7 +15,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { launch, FPS } = require("./chrome-session");
+const { launch, FORMATS, FPS } = require("./chrome-session");
 const { route } = require("./routes");
 
 const [format = "landscape", routeName = "endless-coop", secondsArg = "30", ...flags] = process.argv.slice(2);
@@ -72,7 +72,10 @@ async function capture(session, seed) {
 }
 
 (async () => {
-    const session = await launch({ format, port, dry: Boolean(search) });
+    // A search renders at the capture's own pixel density, not the faster 1x of a dry run: the
+    // menu draws on the same dice as the run, so a different density picks a different run, and
+    // a seed found at 1x did not survive being recorded at 1.5x.
+    const session = await launch({ format, port, dry: Boolean(search), scale: FORMATS[format].scale });
     try {
         if (search) {
             const [from, to] = search.split("-").map(Number);
@@ -84,7 +87,7 @@ async function capture(session, seed) {
             await capture(session, Number(option("--seed") ?? 1));
         }
     } finally {
-        session.close();
+        await session.close();
     }
 })().catch(error => {
     console.error(error);

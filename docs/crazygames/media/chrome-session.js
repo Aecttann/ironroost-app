@@ -34,6 +34,17 @@ const FORMATS = {
     hd: { css: { width: 1920, height: 1080 }, scale: 1 }
 };
 
+/**
+ * A named format, or any viewport written as WIDTHxHEIGHT with a trailing "t" for touch — the
+ * QA checklist's sizes, 821x462 or 800x450t, without a table entry for each.
+ */
+function formatFor(name) {
+    if (FORMATS[name]) return FORMATS[name];
+    const match = /^(\d+)x(\d+)(t?)$/.exec(name ?? "");
+    if (!match) return undefined;
+    return { css: { width: Number(match[1]), height: Number(match[2]) }, scale: 1, touch: match[3] === "t" };
+}
+
 const FPS = 60;
 // The menu finishes painting a beat after the canvas exists; the clock is held only after this.
 const MENU_SETTLE_MS = 3500;
@@ -87,9 +98,24 @@ function connect(url) {
  * starts. "first" is a stranger: the game skips the menu and opens straight on stage one with its
  * controls drawn on the field.
  */
-async function launch({ format, port = 8130, debugPort = 9333, dry = false, scale, dist = "productionExecutable", visitor = "returning" }) {
-    const size = FORMATS[format];
-    if (!size) throw new Error(`unknown format ${format}; expected ${Object.keys(FORMATS).join(" or ")}`);
+/**
+ * The first debugging port from [from] that nothing answers on. A Chrome left behind by an
+ * interrupted run keeps its port; a new session that took the same number attached to that old
+ * browser — its profile, its save — instead of the one it had just started, and every shot of a
+ * "first visit" came out as a returning player's menu.
+ */
+async function freeDebugPort(from) {
+    for (let candidate = from; candidate < from + 50; candidate++) {
+        const answered = await fetch(`http://localhost:${candidate}/json/version`).then(() => true, () => false);
+        if (!answered) return candidate;
+    }
+    throw new Error(`no free debugging port from ${from}; close the headless Chromes left over from earlier runs`);
+}
+
+async function launch({ format, port = 8130, debugPort: preferredPort = 9333, dry = false, scale, dist = "productionExecutable", visitor = "returning" }) {
+    const debugPort = await freeDebugPort(preferredPort);
+    const size = formatFor(format);
+    if (!size) throw new Error(`unknown format ${format}; expected ${Object.keys(FORMATS).join(", ")} or WIDTHxHEIGHT[t]`);
     const gameUrl = `http://localhost:${port}/webApp/build/dist/wasmJs/${dist}/index.html`;
 
     const chrome = spawn(findChrome(), [
@@ -155,9 +181,16 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
         format,
         client,
         evaluate,
+        /**
+         * Closes the page and the browser, resolving once Chrome has really gone. A session
+         * opened straight after on the same debugging port otherwise attached to the dying one,
+         * waited on it for ever, and let Node exit with nothing done and no error.
+         */
         close() {
             client.close();
+            const exited = chrome.exitCode !== null ? Promise.resolve() : new Promise(resolve => chrome.once("exit", resolve));
             chrome.kill();
+            return exited;
         },
 
         /** Saves what the page looks like now, for reading a failure. Lands in the temp directory. */
@@ -175,14 +208,18 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
         async enterTake({ mode, seed }) {
             await session.openMenu({ seed });
             await evaluate(`ironroostCapture.begin(${JSON.stringify(mode)})`, false);
-            for (let idled = 0; ; idled += 15) {
+            // A few frames at a time with a moment of wall time between: the route reaches its
+            // mode by keys, and focus reaches a freshly opened overlay through a zero-delay timer
+            // that only runs once the idling lets go (see settle() in screenshots.js).
+            for (let idled = 0; ; idled += 3) {
                 const state = await evaluate("ironroostCapture.beginState", false);
                 if (state.done) {
                     if (state.error) throw new Error(state.error);
                     break;
                 }
                 if (idled > FPS * 60) throw new Error(`the ${mode} run never started`);
-                await evaluate("ironroostCapture.idle(15)");
+                await evaluate("ironroostCapture.idle(3)");
+                await sleep(20);
             }
         },
 
@@ -266,4 +303,4 @@ async function launch({ format, port = 8130, debugPort = 9333, dry = false, scal
     return session;
 }
 
-module.exports = { launch, FORMATS, FPS };
+module.exports = { launch, FORMATS, formatFor, FPS };
