@@ -7,7 +7,9 @@
  * Writes androidApp/src/main/res/mipmap-<density>/ic_launcher_foreground.png (the adaptive icon's
  * foreground, also its monochrome layer and the splash screen's icon), ic_launcher.png and
  * ic_launcher_round.png (the square and round icons of launchers older than adaptive icons).
- * The Play Store icon is cut from the xxxhdpi foreground by docs/play/media/studio.html.
+ * The Play Store icon is cut from the xxxhdpi foreground by docs/play/media/studio.html, and the
+ * web build's page icon, webApp/src/wasmJsMain/resources/icon.svg, is the same tank pixel for
+ * pixel on the background colour, one SVG square per sprite pixel.
  *
  * The tank is the player's own, the green one with the gold hatch, at a whole multiple of its
  * sixteen pixels so every sprite pixel stays square. The adaptive foreground is the tank alone,
@@ -21,6 +23,7 @@ const { Image, readPng } = require("./png");
 const ROOT = path.resolve(__dirname, "..", "..");
 const GRAPHICS = path.join(ROOT, "shared/src/commonMain/composeResources/files/battle_city/graphics");
 const RES = path.join(ROOT, "androidApp/src/main/res");
+const WEB_ICON = path.join(ROOT, "webApp/src/wasmJsMain/resources/icon.svg");
 
 /** values/colors: ic_launcher_background. */
 const BACKGROUND = 0x1a1f28;
@@ -102,4 +105,24 @@ for (const [bucket, density] of Object.entries(DENSITIES)) {
     fs.writeFileSync(path.join(dir, "ic_launcher.png"), legacy(density, false).encode());
     fs.writeFileSync(path.join(dir, "ic_launcher_round.png"), legacy(density, true).encode());
 }
-console.log(`launcher icons written for ${Object.keys(DENSITIES).join(", ")}`);
+/** The tank as an SVG of 16x16 squares, crisp at any size the browser asks for. */
+function svgIcon() {
+    const colour = rgb => `#${rgb.toString(16).padStart(6, "0")}`;
+    const squares = [];
+    for (let y = 0; y < tank.height; y++) {
+        for (let x = 0; x < tank.width; x++) {
+            const { rgb, alpha } = pixelAt(tank, x, y);
+            if (alpha !== 0) squares.push(`    <rect x="${x}" y="${y}" width="1" height="1" fill="${colour(rgb)}"/>`);
+        }
+    }
+    return [
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${tank.width} ${tank.height}" shape-rendering="crispEdges" role="img" aria-label="Ironroost">`,
+        `    <rect width="${tank.width}" height="${tank.height}" fill="${colour(BACKGROUND)}"/>`,
+        ...squares,
+        "</svg>",
+        ""
+    ].join("\n");
+}
+
+fs.writeFileSync(WEB_ICON, svgIcon());
+console.log(`launcher icons written for ${Object.keys(DENSITIES).join(", ")}, and the web page icon`);
