@@ -25,6 +25,10 @@ val stampAppVersion = tasks.register<Copy>("stampAppVersion") {
     description = "Writes the release version and leaderboard key into the page shell."
     from(layout.projectDirectory.file("src/webShell/index.html"))
     into(layout.buildDirectory.dir("generated/webShell"))
+    // Gradle does not see a filter's tokens as inputs: without these, moving to 2.0.0 left the
+    // page stamped 1.0.0 in place and the upload's About screen named the old version.
+    inputs.property("appVersion", releaseVersionName)
+    inputs.property("leaderboardKey", leaderboardKey)
     filter(
         mapOf(
             "tokens" to mapOf(
