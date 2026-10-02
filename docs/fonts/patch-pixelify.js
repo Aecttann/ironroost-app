@@ -9,9 +9,13 @@
  * Π, the right single quote — they are just not reachable from those code points, so a
  * Ukrainian "Пауза" or "Оновлення" would drop to a system font mid-word.
  *
+ * It also draws К with the acute of the Macedonian Ќ, and Ќ without one: the two glyphs are
+ * there, mapped the wrong way round.
+ *
  * The fix touches nothing but two tables:
  *   - cmap gains the four missing code points, each pointing at the existing glyph of the same
- *     shape, so outlines, weights (gvar) and kerning (GPOS, keyed by glyph) all carry over;
+ *     shape, so outlines, weights (gvar) and kerning (GPOS, keyed by glyph) all carry over, and
+ *     К and Ќ trade glyphs;
  *   - name carries a new family name. "Pixelify Sans" is its author's trademark, and the OFL
  *     asks a modified font not to pass itself off as the original. Copyright, licence and
  *     designer records are kept as they are.
@@ -30,6 +34,12 @@ const ALIASES = new Map([
 ]);
 /** П has no Latin twin; the Greek capital Pi glyph is drawn but unmapped, so it goes by name. */
 const BY_GLYPH_NAME = new Map([[0x041f, "Pi"]]);
+/**
+ * Code points whose glyphs upstream has the wrong way round, each pointed at the other's. К
+ * (U+041A) is drawn with the acute that belongs to the Macedonian Ќ (U+040C), and Ќ without it,
+ * so every Ukrainian "Колекція" and "Коротше" wore an accent.
+ */
+const SWAPS = [[0x041a, 0x040c]];
 
 const [input, output] = process.argv.slice(2);
 if (!input || !output) throw new Error("usage: patch-pixelify.js <in.ttf> <out.ttf>");
@@ -92,6 +102,14 @@ function glyphNames(post) {
     return names;
 }
 
+/** The top of [glyph]'s outline, from its glyf header. */
+function glyphTop(tables, glyph) {
+    const loca = tables.get("loca");
+    const long = tables.get("head").readInt16BE(50) === 1;
+    const offset = long ? loca.readUInt32BE(glyph * 4) : loca.readUInt16BE(glyph * 2) * 2;
+    return tables.get("glyf").readInt16BE(offset + 8);
+}
+
 function buildCmap(map) {
     const codes = [...map.keys()].sort((a, b) => a - b);
     const segments = [];
@@ -147,7 +165,7 @@ function buildName(name) {
             1: FAMILY,
             3: `1.000;NONE;${POSTSCRIPT}-Regular`,
             4: `${FAMILY} Regular`,
-            5: "Version 1.000; Pixelify Sans with Cyrillic О П І and ʼ mapped, for Ironroost",
+            5: "Version 1.000; Pixelify Sans with Cyrillic О П І and ʼ mapped and К unswapped, for Ironroost",
             6: `${POSTSCRIPT}-Regular`,
             16: FAMILY,
             25: POSTSCRIPT
@@ -224,6 +242,16 @@ for (const [code, glyphName] of BY_GLYPH_NAME) {
     if (cmap.has(code)) throw new Error(`U+${code.toString(16)} is already mapped; this patch is out of date`);
     if (!names.has(glyphName)) throw new Error(`no glyph named ${glyphName}`);
     cmap.set(code, names.get(glyphName));
+}
+for (const [plain, accented] of SWAPS) {
+    // Checked by shape: an upstream that has fixed the pair must not be swapped back. The plain
+    // letter's code point still holding the taller glyph is the mistake this undoes.
+    if (glyphTop(tables, cmap.get(plain)) <= glyphTop(tables, cmap.get(accented))) {
+        throw new Error(`U+${plain.toString(16)} is no longer the taller glyph; this patch is out of date`);
+    }
+    const glyph = cmap.get(plain);
+    cmap.set(plain, cmap.get(accented));
+    cmap.set(accented, glyph);
 }
 tables.set("cmap", buildCmap(cmap));
 tables.set("name", buildName(tables.get("name")));

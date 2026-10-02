@@ -3,9 +3,11 @@ package com.aectann.battlecity.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.text.input.ImeAction
@@ -43,6 +46,7 @@ import com.aectann.battlecity.engine.TanksCardGroup
 import com.aectann.battlecity.engine.TanksCollection
 import com.aectann.battlecity.engine.TanksDailyAvailability
 import com.aectann.battlecity.engine.TanksDailyRewards
+import com.aectann.battlecity.engine.TanksDailyStatus
 import com.aectann.battlecity.engine.TanksNickname
 import com.aectann.battlecity.engine.TanksScoreEntry
 import org.jetbrains.compose.resources.stringResource
@@ -65,7 +69,6 @@ fun DailyRewardScreen(
     val claimable = daily.availability == TanksDailyAvailability.Claimable
     // With a reward waiting, Enter claims it; otherwise it goes back.
     val claim = rememberInitialFocus(enabled = claimable)
-    val type = LocalPixelType.current
 
     SubScreenScaffold(
         title = stringResource(TanksStrings.dailyTitle),
@@ -73,112 +76,160 @@ fun DailyRewardScreen(
         backEnabled = !freezeInProgress,
         backTakesFocus = !claimable
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PixelTitle(stringResource(TanksStrings.dailyStreak, daily.streak))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(TanksStrings.dailyBestStreak, daily.bestStreak),
-                color = MutedText,
-                style = type.caption
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-            WeekStrip(currentCycleDay = daily.cycleDay, claimable = daily.availability)
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = stringResource(TanksStrings.dailyRewardLives, daily.reward.bonusLives),
-                color = Color.White,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = stringResource(TanksStrings.dailyRewardCard),
-                color = MutedText,
-                textAlign = TextAlign.Center
-            )
-
-            if (daily.streakWillReset) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    text = stringResource(TanksStrings.dailyStreakWarning),
-                    color = BrickLight,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            when (daily.availability) {
-                TanksDailyAvailability.Claimable -> PixelButton(
-                    text = stringResource(TanksStrings.dailyClaim),
-                    onClick = onClaim,
-                    enabled = !freezeInProgress,
-                    modifier = Modifier.widthIn(min = 240.dp),
-                    material = PixelMaterial.Gold,
-                    focusRequester = claim
-                )
-
-                TanksDailyAvailability.Claimed -> Text(
-                    text = stringResource(TanksStrings.dailyClaimed),
-                    color = PlayerGreen,
-                    textAlign = TextAlign.Center
-                )
-
-                TanksDailyAvailability.ClockBehind -> Text(
-                    text = stringResource(TanksStrings.dailyClockBehind),
-                    color = BrickLight,
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            if (meta.pendingBonusLives > 0) {
-                Spacer(modifier = Modifier.height(18.dp))
-                Text(
-                    text = stringResource(TanksStrings.dailyBanked, meta.pendingBonusLives),
-                    color = PlayerGreen,
-                    textAlign = TextAlign.Center
-                )
-            }
-            if (supportsStreakFreeze) {
-                Spacer(Modifier.height(24.dp))
-                if (daily.streakFreezeStored) {
-                    Text(stringResource(if (daily.streakFreezeWillBeUsed) TanksStrings.dailyFreezeProtectClaim
-                        else TanksStrings.dailyFreezeStored), color = PlayerGreen,
-                        textAlign = TextAlign.Center)
-                } else {
-                    Text(stringResource(TanksStrings.dailyFreezeOffer), color = MutedText,
-                        textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(10.dp))
-                    PixelButton(
-                        text = stringResource(if (freezeInProgress) TanksStrings.resurrectionWatching else TanksStrings.dailyFreezeWatch),
-                        onClick = onFreeze,
-                        enabled = meta.canEarnStreakFreeze &&
-                            adState.streakFreeze == RewardedAdAvailability.Ready && !freezeInProgress,
-                        material = PixelMaterial.Steel
-                    )
-                    val cooldownHours = maxOf(meta.streakFreezeCooldownHours, adState.streakFreezeCooldownHours)
-                    val note = when {
-                        freezeInProgress -> null
-                        cooldownHours > 0 -> stringResource(TanksStrings.dailyFreezeCooldown, cooldownHours)
-                        adState.streakFreeze == RewardedAdAvailability.Loading -> stringResource(TanksStrings.resurrectionLoading)
-                        adState.streakFreeze == RewardedAdAvailability.Unavailable -> stringResource(TanksStrings.dailyFreezeUnavailable)
-                        else -> null
-                    }
-                    if (note != null) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(note, color = MutedText, style = type.caption, textAlign = TextAlign.Center)
-                    }
-                    if (!freezeInProgress && (freezeResult == RewardedAdResult.NotEarned || freezeResult == RewardedAdResult.Failed)) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(stringResource(if (freezeResult == RewardedAdResult.NotEarned) TanksStrings.dailyFreezeNotEarned
-                            else TanksStrings.resurrectionFailed), color = MutedText, style = type.caption, textAlign = TextAlign.Center)
-                    }
+        val actions: @Composable () -> Unit = {
+            DailyActions(meta, onClaim, claim, supportsStreakFreeze, adState, freezeInProgress, freezeResult, onFreeze)
+        }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            // A phone on its side leaves the page some two hundred dp of height: in one column the
+            // claim sat on its bottom edge and the freeze offer under the fold, where nobody
+            // scrolled to it. Side by side, the week on the left and what to do about it on the
+            // right, both buttons are in sight on arrival.
+            if (maxWidth >= 480.dp && maxWidth > maxHeight * 1.5f) {
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) { DailyWeek(daily) }
+                    Column(
+                        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) { actions() }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    DailyWeek(daily)
+                    Spacer(modifier = Modifier.height(22.dp))
+                    actions()
                 }
             }
+        }
+    }
+}
+
+/** What the daily reward is: the streak, the week, and what today pays. */
+@Composable
+private fun DailyWeek(daily: TanksDailyStatus) {
+    PixelTitle(stringResource(TanksStrings.dailyStreak, daily.streak))
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = stringResource(TanksStrings.dailyBestStreak, daily.bestStreak),
+        color = MutedText,
+        style = LocalPixelType.current.caption
+    )
+
+    Spacer(modifier = Modifier.height(20.dp))
+    WeekStrip(currentCycleDay = daily.cycleDay, claimable = daily.availability)
+    Spacer(modifier = Modifier.height(20.dp))
+
+    Text(
+        text = stringResource(TanksStrings.dailyRewardLives, daily.reward.bonusLives),
+        color = Color.White,
+        textAlign = TextAlign.Center
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+        text = stringResource(TanksStrings.dailyRewardCard),
+        color = MutedText,
+        textAlign = TextAlign.Center
+    )
+}
+
+/**
+ * What to do about it: claim today's reward, and earn a streak freeze with an ad. The freeze's
+ * button comes before its rules, which are fine print under it: three sentences above the button
+ * pushed the button itself out of sight.
+ */
+@Composable
+private fun DailyActions(
+    meta: TanksMetaUi,
+    onClaim: () -> Unit,
+    claim: FocusRequester,
+    supportsStreakFreeze: Boolean,
+    adState: TanksAdsState,
+    freezeInProgress: Boolean,
+    freezeResult: RewardedAdResult?,
+    onFreeze: () -> Unit
+) {
+    val daily = meta.daily
+    val type = LocalPixelType.current
+
+    if (daily.streakWillReset) {
+        Text(
+            text = stringResource(TanksStrings.dailyStreakWarning),
+            color = BrickLight,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+    }
+
+    when (daily.availability) {
+        TanksDailyAvailability.Claimable -> PixelButton(
+            text = stringResource(TanksStrings.dailyClaim),
+            onClick = onClaim,
+            enabled = !freezeInProgress,
+            modifier = Modifier.widthIn(min = 240.dp),
+            material = PixelMaterial.Gold,
+            focusRequester = claim
+        )
+
+        TanksDailyAvailability.Claimed -> Text(
+            text = stringResource(TanksStrings.dailyClaimed),
+            color = PlayerGreen,
+            textAlign = TextAlign.Center
+        )
+
+        TanksDailyAvailability.ClockBehind -> Text(
+            text = stringResource(TanksStrings.dailyClockBehind),
+            color = BrickLight,
+            textAlign = TextAlign.Center
+        )
+    }
+
+    if (meta.pendingBonusLives > 0) {
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = stringResource(TanksStrings.dailyBanked, meta.pendingBonusLives),
+            color = PlayerGreen,
+            textAlign = TextAlign.Center
+        )
+    }
+    if (supportsStreakFreeze) {
+        Spacer(Modifier.height(24.dp))
+        if (daily.streakFreezeStored) {
+            Text(stringResource(if (daily.streakFreezeWillBeUsed) TanksStrings.dailyFreezeProtectClaim
+                else TanksStrings.dailyFreezeStored), color = PlayerGreen,
+                textAlign = TextAlign.Center)
+        } else {
+            PixelButton(
+                text = stringResource(if (freezeInProgress) TanksStrings.resurrectionWatching else TanksStrings.dailyFreezeWatch),
+                onClick = onFreeze,
+                enabled = meta.canEarnStreakFreeze &&
+                    adState.streakFreeze == RewardedAdAvailability.Ready && !freezeInProgress,
+                material = PixelMaterial.Steel
+            )
+            val cooldownHours = maxOf(meta.streakFreezeCooldownHours, adState.streakFreezeCooldownHours)
+            val note = when {
+                freezeInProgress -> null
+                cooldownHours > 0 -> stringResource(TanksStrings.dailyFreezeCooldown, cooldownHours)
+                adState.streakFreeze == RewardedAdAvailability.Loading -> stringResource(TanksStrings.resurrectionLoading)
+                adState.streakFreeze == RewardedAdAvailability.Unavailable -> stringResource(TanksStrings.dailyFreezeUnavailable)
+                else -> null
+            }
+            if (note != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(note, color = MutedText, style = type.caption, textAlign = TextAlign.Center)
+            }
+            if (!freezeInProgress && (freezeResult == RewardedAdResult.NotEarned || freezeResult == RewardedAdResult.Failed)) {
+                Spacer(Modifier.height(6.dp))
+                Text(stringResource(if (freezeResult == RewardedAdResult.NotEarned) TanksStrings.dailyFreezeNotEarned
+                    else TanksStrings.resurrectionFailed), color = MutedText, style = type.caption, textAlign = TextAlign.Center)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(stringResource(TanksStrings.dailyFreezeOffer), color = MutedText, style = type.caption,
+                textAlign = TextAlign.Center)
         }
     }
 }

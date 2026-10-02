@@ -335,10 +335,10 @@ internal fun PixelButton(
 }
 
 /**
- * Centred text that may wrap between words but never inside one: when the longest word is wider
- * than the room there is, the whole text is set a size smaller instead. A long word in a narrow
- * button — "Нескінченний" on a records tab, "Налаштування" under a menu icon, "Einstellungen" —
- * had been cut in two.
+ * Text, centred unless [textAlign] says otherwise, that may wrap between words but never inside
+ * one: when the longest word is wider than the room there is, the whole text is set a size
+ * smaller instead. A long word in a narrow button — "Нескінченний" on a records tab,
+ * "Налаштування" under a menu icon, "Einstellungen" — had been cut in two.
  */
 @Composable
 internal fun WordSafeText(
@@ -346,14 +346,15 @@ internal fun WordSafeText(
     color: Color,
     style: TextStyle,
     modifier: Modifier = Modifier,
-    maxLines: Int = Int.MAX_VALUE
+    maxLines: Int = Int.MAX_VALUE,
+    textAlign: TextAlign = TextAlign.Center
 ) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = if (textAlign == TextAlign.Center) Alignment.Center else Alignment.CenterStart) {
         Text(
             text = text,
             color = color,
             style = fitLongestWord(text, style, maxWidth),
-            textAlign = TextAlign.Center,
+            textAlign = textAlign,
             maxLines = maxLines
         )
     }

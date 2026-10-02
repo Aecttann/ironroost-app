@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -230,7 +232,9 @@ private fun StageCurtainView(curtain: StageCurtain, modifier: Modifier) {
  * strip across the top. Numbers are in the pixel font; nearly everything else is an icon.
  *
  * The on-screen stick and trigger live in the same panels when [touchControls] is on: steering
- * under the left thumb, the trigger under the right, pause just above it.
+ * under the left thumb, the trigger under the right. Pause then goes up, out of the trigger's way
+ * — beside the stage in landscape, into the top strip upright: just above the trigger, a hurried
+ * shot that landed a little high paused the game.
  */
 @Composable
 internal fun TanksPlayfield(
@@ -310,15 +314,20 @@ internal fun TanksPlayfield(
                     contentPadding = PaddingValues(12.dp),
                     horizontalAlignment = Alignment.Start
                 ) {
-                    StageLine(assets.flagIcon(), stageLabel, big)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        StageLine(assets.flagIcon(), stageLabel, if (isEndless) state.wave else stage, big, Modifier.weight(1f))
+                        if (showStartButton && touchControls) {
+                            Spacer(Modifier.width(8.dp))
+                            PauseControl(isRunning, keyboardHints, onStartPause)
+                        }
+                    }
                     Spacer(Modifier.height(if (big) 20.dp else 14.dp))
                     EnemyReserve(state.enemiesPending, assets.enemyQueueIcon(), big)
                     LoadoutLines(state)
                     Spacer(Modifier.weight(1f))
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (showStartButton) PauseControl(isRunning, keyboardHints, onStartPause)
+                        if (showStartButton && !touchControls) PauseControl(isRunning, keyboardHints, onStartPause)
                         if (touchControls) {
-                            Spacer(Modifier.height(10.dp))
                             FireButton(isFirePressed, onFirePressedChanged, lesson?.beckonFire == true, Modifier.size(minOf(panelWidth - 32.dp, 132.dp)))
                         }
                     }
@@ -340,7 +349,7 @@ internal fun TanksPlayfield(
                     score = score,
                     stageLabel = stageLabel,
                     isCoop = isCoop,
-                    showStartButton = showStartButton && !touchControls,
+                    showStartButton = showStartButton,
                     isRunning = isRunning,
                     keyboardHints = keyboardHints,
                     onStartPause = onStartPause,
@@ -357,10 +366,8 @@ internal fun TanksPlayfield(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         DirectionPad(activeDirection, onDirectionChanged, lesson?.beckonPad == true, Modifier.size(controlsHeight - 8.dp))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (showStartButton) PauseControl(isRunning, keyboardHints = false, onStartPause = onStartPause)
-                            FireButton(isFirePressed, onFirePressedChanged, lesson?.beckonFire == true, Modifier.size(96.dp))
-                        }
+                        // The trigger has the height to itself now that pause is up in the strip.
+                        FireButton(isFirePressed, onFirePressedChanged, lesson?.beckonFire == true, Modifier.size(120.dp))
                     }
                 }
             }
@@ -412,13 +419,26 @@ private fun PlayerCard(player: BattleCityPlayerRenderState, assets: TanksAssets,
     }
 }
 
+/**
+ * The flag with the stage, or the wave in an endless run. Where the whole [label] does not fit on
+ * one line — a phone's narrow flank, with the pause button beside it — the flag keeps just the
+ * [number], as on the original's own side panel, rather than breaking "Stage" in two.
+ */
 @Composable
-private fun StageLine(flag: ImageBitmap?, label: String, big: Boolean) {
+private fun StageLine(flag: ImageBitmap?, label: String, number: Int, big: Boolean, modifier: Modifier = Modifier) {
     val type = LocalPixelType.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    val style = (if (big) type.heading else type.label).shadowed()
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         SpriteImage(flag, if (big) 30.dp else 20.dp)
         Spacer(Modifier.width(8.dp))
-        Text(label, color = Color.White, style = (if (big) type.heading else type.label).shadowed())
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val measurer = rememberTextMeasurer()
+            val roomPx = with(LocalDensity.current) { maxWidth.toPx() }
+            val fits = remember(label, style, roomPx) {
+                measurer.measure(label, style, softWrap = false, maxLines = 1).size.width <= roomPx
+            }
+            Text(if (fits) label else number.toString(), color = Color.White, style = style, maxLines = 1, softWrap = false)
+        }
     }
 }
 
