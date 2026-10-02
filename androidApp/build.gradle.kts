@@ -5,8 +5,8 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
-val releaseVersionCode = providers.gradleProperty("releaseVersionCode").map(String::toInt).orElse(1)
-val releaseVersionName = providers.gradleProperty("releaseVersionName").orElse("1.0.0")
+val releaseVersionCode = providers.gradleProperty("releaseVersionCode").map(String::toInt).orElse(2)
+val releaseVersionName = providers.gradleProperty("releaseVersionName").orElse("2.0.0")
 
 // Release signing is driven entirely by the environment, so no key material lives in the repo.
 val signingEnvironment = mapOf(

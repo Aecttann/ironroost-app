@@ -17,7 +17,7 @@ The build is roughly 7 MB — 156 files, 15.00 MiB raw and 6.93 MiB compressed (
 music are most of the growth), well inside both the 50 MB Basic ceiling and the 20 MB mobile
 target. Source maps are not built for the
 production bundle, so the Kotlin sources are not shipped to players. Set the version the About
-screen shows with `-PreleaseVersionName=…`; it defaults to `1.0.0`.
+screen shows with `-PreleaseVersionName=…`; it defaults to `releaseVersionName` in `gradle.properties`.
 
 ## Listing media
 

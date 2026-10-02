@@ -13,7 +13,7 @@ plugins {
 // The page carries the release version and the About screen reads it back, so the uploaded build
 // names itself. index.html sits outside the resource tree because it is a template: only the
 // stamped copy is packed.
-val releaseVersionName = providers.gradleProperty("releaseVersionName").orElse("1.0.0").get()
+val releaseVersionName = providers.gradleProperty("releaseVersionName").orElse("2.0.0").get()
 
 // The CrazyGames leaderboard key. It is only issued to invited games, and it is a client-side
 // secret in name only — it ships inside the page either way — but it stays out of the repository

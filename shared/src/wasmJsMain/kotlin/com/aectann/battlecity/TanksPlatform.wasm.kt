@@ -139,7 +139,7 @@ private class BrowserTanksSoundPlayer(
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
 private fun browserAppVersion(): String =
-    js("globalThis.ironroostPortal?.appVersion ?? '1.0.0'")
+    js("globalThis.ironroostPortal?.appVersion ?? '2.0.0'")
 
 private fun browserStorageGet(key: String): String? =
     js("globalThis.ironroostPortal?.storageGet(key) ?? null")

@@ -633,7 +633,7 @@
         },
 
         get appVersion() {
-            return document.querySelector('meta[name="app-version"]')?.content || "1.0.0";
+            return document.querySelector('meta[name="app-version"]')?.content || "2.0.0";
         },
 
         hideLoading() {
